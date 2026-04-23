@@ -1,0 +1,7 @@
+fastapi
+uvicorn[standard]
+python-dotenv
+
+flake8
+pytest
+httpx
