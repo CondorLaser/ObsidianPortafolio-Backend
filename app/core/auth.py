@@ -2,8 +2,9 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from jose import jwt
 import requests
+import os
 
-CLERK_ISSUER = "https://knowing-drake-83.clerk.accounts.dev"
+CLERK_ISSUER = os.getenv("CLERK_ISSUER")
 JWKS_URL = f"{CLERK_ISSUER}/.well-known/jwks.json"
 
 security = HTTPBearer()
