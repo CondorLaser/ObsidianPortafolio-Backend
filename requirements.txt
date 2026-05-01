@@ -1,6 +1,11 @@
 fastapi
 uvicorn[standard]
 python-dotenv
+pydantic-settings
+
+sqlalchemy[asyncio]>=2.0
+asyncpg
+alembic
 
 flake8
 pytest
