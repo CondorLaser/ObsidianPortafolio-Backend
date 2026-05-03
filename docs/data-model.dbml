@@ -1,0 +1,284 @@
+// ============================================================================
+// Orion Portafolio — Modelo de datos objetivo
+// Formato: DBML (https://dbml.dbdiagram.io). Pegar en https://dbdiagram.io
+// para visualizar/editar drag-and-drop.
+//
+// Estado por tabla:
+//   [implemented] -> ya existe en develop, migrado en Neon
+//   [designed]    -> diseñada, no implementada (siguiente sprint)
+//
+// Métricas (patrimonio, rentabilidad, volatilidad, Sharpe, distribución, etc.)
+// son DERIVADAS — viven en la capa de aplicación / vistas SQL, no como tablas.
+// ============================================================================
+
+Project orion_portafolio {
+  database_type: 'PostgreSQL'
+  Note: '''
+    Modelo objetivo de Orion Portafolio.
+    13 tablas: 5 implementadas en MVP + 8 diseñadas.
+  '''
+}
+
+// ----- Identidad ------------------------------------------------------------
+
+Table user [headercolor: #2E7D32, note: '[implemented] Espejo del usuario Clerk'] {
+  id uuid [pk, default: `gen_random_uuid()`]
+  clerk_id text [unique, not null, note: 'sub del JWT Clerk']
+  email text
+  created_at timestamptz [not null, default: `now()`]
+}
+
+Table user_profile [headercolor: #F9A825, note: '[designed] Datos extendidos del usuario'] {
+  user_id uuid [pk, ref: - user.id]
+  full_name text
+  phone text
+  country char(2) [note: 'ISO 3166']
+  risk_profile risk_profile_enum
+  base_currency char(3) [note: 'Moneda preferida para visualización']
+  updated_at timestamptz [not null, default: `now()`]
+}
+
+// ----- Catálogo de instrumentos ---------------------------------------------
+
+Table asset [headercolor: #2E7D32, note: '[implemented + designed fields] Catálogo global'] {
+  id uuid [pk, default: `gen_random_uuid()`]
+  symbol text [unique, not null]
+  name text [not null]
+  kind asset_kind [not null]
+  currency char(3) [not null, default: 'USD']
+  provider provider_enum [note: '[designed] qué API consultar para precios']
+  provider_symbol text [note: '[designed] símbolo en el sistema del provider']
+  isin text [note: '[designed] identificador internacional para deduplicar']
+  created_at timestamptz [not null, default: `now()`]
+}
+
+Table asset_price [headercolor: #2E7D32, note: '[implemented] Series históricas de cierre'] {
+  asset_id uuid [ref: > asset.id]
+  date date
+  close numeric(20,8) [not null]
+  currency char(3) [not null]
+  source text [note: 'twelvedata | fintual | manual']
+
+  indexes {
+    (asset_id, date) [pk]
+    (asset_id, date) [name: 'ix_asset_price_asset_date_desc']
+  }
+}
+
+// ----- Cuentas y operaciones ------------------------------------------------
+
+Table account [headercolor: #2E7D32, note: '[implemented] Cuenta de inversión del usuario'] {
+  id uuid [pk, default: `gen_random_uuid()`]
+  user_id uuid [not null, ref: > user.id]
+  name text [not null]
+  broker text
+  currency char(3) [not null, default: 'USD']
+  created_at timestamptz [not null, default: `now()`]
+
+  indexes {
+    user_id [name: 'ix_account_user_id']
+  }
+}
+
+Table transaction [headercolor: #2E7D32, note: '[implemented] Log inmutable de movimientos'] {
+  id uuid [pk, default: `gen_random_uuid()`]
+  account_id uuid [not null, ref: > account.id]
+  asset_id uuid [not null, ref: > asset.id]
+  kind transaction_kind [not null]
+  quantity numeric(20,8) [not null, note: 'siempre positiva, kind da el signo']
+  price numeric(20,8) [note: 'NULL para deposit/withdrawal sin asset']
+  fee numeric(20,8) [not null, default: 0]
+  executed_at timestamptz [not null]
+  import_id uuid [ref: > transaction_import.id, note: '[designed] NULL si fue manual']
+  created_at timestamptz [not null, default: `now()`]
+
+  indexes {
+    (account_id, executed_at) [name: 'ix_transaction_account_executed']
+  }
+}
+
+Table transaction_import [headercolor: #F9A825, note: '[designed] Cada certificado/CSV cargado'] {
+  id uuid [pk, default: `gen_random_uuid()`]
+  user_id uuid [not null, ref: > user.id]
+  source_type import_source_type [not null]
+  original_filename text [not null]
+  storage_url text
+  status import_status [not null, default: 'pending']
+  rows_total integer
+  rows_imported integer
+  errors jsonb [note: 'lista de errores por fila']
+  created_at timestamptz [not null, default: `now()`]
+  processed_at timestamptz
+}
+
+// ----- Posiciones y patrimonio ---------------------------------------------
+
+Table position [headercolor: #F9A825, note: '[designed] Materializada — quantity neta + costo promedio'] {
+  account_id uuid [ref: > account.id]
+  asset_id uuid [ref: > asset.id]
+  quantity numeric(20,8) [not null]
+  avg_cost numeric(20,8)
+  realized_pnl numeric(20,8) [not null, default: 0]
+  total_dividends numeric(20,8) [not null, default: 0]
+  total_fees numeric(20,8) [not null, default: 0]
+  last_transaction_at timestamptz
+  updated_at timestamptz [not null, default: `now()`]
+
+  indexes {
+    (account_id, asset_id) [pk]
+  }
+}
+
+Table portfolio_snapshot [headercolor: #F9A825, note: '[designed] Foto diaria del patrimonio del usuario'] {
+  user_id uuid [ref: > user.id]
+  date date
+  total_value numeric(20,8) [not null]
+  total_invested numeric(20,8) [not null]
+  unrealized_pnl numeric(20,8) [not null]
+  realized_pnl_period numeric(20,8) [not null, default: 0]
+  breakdown_by_currency jsonb
+  breakdown_by_account jsonb
+
+  indexes {
+    (user_id, date) [pk]
+  }
+}
+
+// ----- Multi-moneda ---------------------------------------------------------
+
+Table fx_rate [headercolor: #F9A825, note: '[designed] Conversión de monedas'] {
+  date date
+  base char(3)
+  quote char(3)
+  rate numeric(20,8) [not null]
+  source text [note: 'twelvedata | banco_central_chile | manual']
+
+  indexes {
+    (date, base, quote) [pk]
+  }
+}
+
+// ----- Alertas --------------------------------------------------------------
+
+Table alert_rule [headercolor: #F9A825, note: '[designed] Reglas configuradas por el usuario'] {
+  id uuid [pk, default: `gen_random_uuid()`]
+  user_id uuid [not null, ref: > user.id]
+  kind alert_kind [not null]
+  target_asset_id uuid [ref: > asset.id]
+  target_account_id uuid [ref: > account.id]
+  threshold_value numeric(20,8) [not null]
+  threshold_unit threshold_unit [not null]
+  enabled boolean [not null, default: true]
+  created_at timestamptz [not null, default: `now()`]
+}
+
+Table alert [headercolor: #F9A825, note: '[designed] Instancia disparada de una regla'] {
+  id uuid [pk, default: `gen_random_uuid()`]
+  user_id uuid [not null, ref: > user.id]
+  rule_id uuid [ref: > alert_rule.id, note: 'NULL si fue alerta del sistema sin regla']
+  title text [not null]
+  detail text
+  severity alert_severity [not null]
+  status alert_status [not null, default: 'new']
+  triggered_at timestamptz [not null, default: `now()`]
+  dismissed_at timestamptz
+}
+
+// ----- Recomendaciones ------------------------------------------------------
+
+Table recommendation_run [headercolor: #F9A825, note: '[designed] Auditoría del motor'] {
+  id uuid [pk, default: `gen_random_uuid()`]
+  algorithm_version text [not null]
+  started_at timestamptz [not null]
+  finished_at timestamptz
+  users_processed integer
+}
+
+Table recommendation [headercolor: #F9A825, note: '[designed] Sugerencia para un usuario'] {
+  id uuid [pk, default: `gen_random_uuid()`]
+  user_id uuid [not null, ref: > user.id]
+  asset_id uuid [not null, ref: > asset.id]
+  score numeric(5,4) [not null, note: 'match 0..1']
+  reason text
+  run_id uuid [not null, ref: > recommendation_run.id]
+  status recommendation_status [not null, default: 'new']
+  created_at timestamptz [not null, default: `now()`]
+}
+
+// ============================================================================
+// Enums
+// ============================================================================
+
+Enum asset_kind {
+  stock
+  etf
+  fund
+  crypto
+  other
+}
+
+Enum transaction_kind {
+  buy
+  sell
+  dividend
+  fee
+  deposit
+  withdrawal
+}
+
+Enum provider_enum {
+  twelvedata [note: 'ETFs y stocks']
+  fintual [note: 'Fondos mutuos chilenos']
+  manual
+}
+
+Enum risk_profile_enum {
+  conservative
+  moderate
+  aggressive
+}
+
+Enum import_source_type {
+  fintual_certificate
+  csv
+  manual
+}
+
+Enum import_status {
+  pending
+  processing
+  succeeded
+  failed
+  partial
+}
+
+Enum alert_kind {
+  price_drop
+  price_target
+  volatility_spike
+  portfolio_drawdown
+}
+
+Enum threshold_unit {
+  percent
+  absolute
+}
+
+Enum alert_severity {
+  info
+  warning
+  critical
+}
+
+Enum alert_status {
+  new
+  viewed
+  dismissed
+}
+
+Enum recommendation_status {
+  new
+  viewed
+  dismissed
+  accepted
+}

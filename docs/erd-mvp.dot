@@ -1,0 +1,60 @@
+digraph orion_mvp {
+  graph [rankdir=LR, splines=ortho, nodesep=0.6, ranksep=0.9, label="Orion Portafolio — ERD del MVP (implementado)", labelloc=t, fontsize=18, fontname="Helvetica"];
+  node  [fontname="Helvetica", fontsize=11];
+  edge  [fontname="Helvetica", fontsize=10];
+    "asset" [shape=plaintext, label=<
+      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="6" BGCOLOR="white">
+        <TR><TD COLSPAN="3" BGCOLOR="#2E7D32"><FONT COLOR="white"><B>asset</B></FONT></TD></TR>
+        <TR><TD ALIGN='LEFT'><B>id</B></TD><TD ALIGN='LEFT'>uuid</TD><TD ALIGN='LEFT'><FONT COLOR='#666'>PK NN</FONT></TD></TR>
+<TR><TD ALIGN='LEFT'><B>symbol</B></TD><TD ALIGN='LEFT'>varchar</TD><TD ALIGN='LEFT'><FONT COLOR='#666'>UK NN</FONT></TD></TR>
+<TR><TD ALIGN='LEFT'><B>name</B></TD><TD ALIGN='LEFT'>varchar</TD><TD ALIGN='LEFT'><FONT COLOR='#666'>NN</FONT></TD></TR>
+<TR><TD ALIGN='LEFT'><B>kind</B></TD><TD ALIGN='LEFT'>varchar(6)</TD><TD ALIGN='LEFT'><FONT COLOR='#666'>NN</FONT></TD></TR>
+<TR><TD ALIGN='LEFT'><B>currency</B></TD><TD ALIGN='LEFT'>varchar(3)</TD><TD ALIGN='LEFT'><FONT COLOR='#666'>NN</FONT></TD></TR>
+<TR><TD ALIGN='LEFT'><B>created_at</B></TD><TD ALIGN='LEFT'>datetime</TD><TD ALIGN='LEFT'><FONT COLOR='#666'>NN</FONT></TD></TR>
+      </TABLE>>];
+    "user" [shape=plaintext, label=<
+      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="6" BGCOLOR="white">
+        <TR><TD COLSPAN="3" BGCOLOR="#2E7D32"><FONT COLOR="white"><B>user</B></FONT></TD></TR>
+        <TR><TD ALIGN='LEFT'><B>id</B></TD><TD ALIGN='LEFT'>uuid</TD><TD ALIGN='LEFT'><FONT COLOR='#666'>PK NN</FONT></TD></TR>
+<TR><TD ALIGN='LEFT'><B>clerk_id</B></TD><TD ALIGN='LEFT'>varchar</TD><TD ALIGN='LEFT'><FONT COLOR='#666'>UK NN</FONT></TD></TR>
+<TR><TD ALIGN='LEFT'><B>email</B></TD><TD ALIGN='LEFT'>varchar</TD><TD ALIGN='LEFT'><FONT COLOR='#666'>&nbsp;</FONT></TD></TR>
+<TR><TD ALIGN='LEFT'><B>created_at</B></TD><TD ALIGN='LEFT'>datetime</TD><TD ALIGN='LEFT'><FONT COLOR='#666'>NN</FONT></TD></TR>
+      </TABLE>>];
+    "account" [shape=plaintext, label=<
+      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="6" BGCOLOR="white">
+        <TR><TD COLSPAN="3" BGCOLOR="#2E7D32"><FONT COLOR="white"><B>account</B></FONT></TD></TR>
+        <TR><TD ALIGN='LEFT'><B>id</B></TD><TD ALIGN='LEFT'>uuid</TD><TD ALIGN='LEFT'><FONT COLOR='#666'>PK NN</FONT></TD></TR>
+<TR><TD ALIGN='LEFT'><B>user_id</B></TD><TD ALIGN='LEFT'>uuid</TD><TD ALIGN='LEFT'><FONT COLOR='#666'>FK NN</FONT></TD></TR>
+<TR><TD ALIGN='LEFT'><B>name</B></TD><TD ALIGN='LEFT'>varchar</TD><TD ALIGN='LEFT'><FONT COLOR='#666'>NN</FONT></TD></TR>
+<TR><TD ALIGN='LEFT'><B>broker</B></TD><TD ALIGN='LEFT'>varchar</TD><TD ALIGN='LEFT'><FONT COLOR='#666'>&nbsp;</FONT></TD></TR>
+<TR><TD ALIGN='LEFT'><B>currency</B></TD><TD ALIGN='LEFT'>varchar(3)</TD><TD ALIGN='LEFT'><FONT COLOR='#666'>NN</FONT></TD></TR>
+<TR><TD ALIGN='LEFT'><B>created_at</B></TD><TD ALIGN='LEFT'>datetime</TD><TD ALIGN='LEFT'><FONT COLOR='#666'>NN</FONT></TD></TR>
+      </TABLE>>];
+    "asset_price" [shape=plaintext, label=<
+      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="6" BGCOLOR="white">
+        <TR><TD COLSPAN="3" BGCOLOR="#2E7D32"><FONT COLOR="white"><B>asset_price</B></FONT></TD></TR>
+        <TR><TD ALIGN='LEFT'><B>asset_id</B></TD><TD ALIGN='LEFT'>uuid</TD><TD ALIGN='LEFT'><FONT COLOR='#666'>PK FK NN</FONT></TD></TR>
+<TR><TD ALIGN='LEFT'><B>date</B></TD><TD ALIGN='LEFT'>date</TD><TD ALIGN='LEFT'><FONT COLOR='#666'>PK NN</FONT></TD></TR>
+<TR><TD ALIGN='LEFT'><B>close</B></TD><TD ALIGN='LEFT'>numeric(20, 8)</TD><TD ALIGN='LEFT'><FONT COLOR='#666'>NN</FONT></TD></TR>
+<TR><TD ALIGN='LEFT'><B>currency</B></TD><TD ALIGN='LEFT'>varchar(3)</TD><TD ALIGN='LEFT'><FONT COLOR='#666'>NN</FONT></TD></TR>
+<TR><TD ALIGN='LEFT'><B>source</B></TD><TD ALIGN='LEFT'>varchar</TD><TD ALIGN='LEFT'><FONT COLOR='#666'>&nbsp;</FONT></TD></TR>
+      </TABLE>>];
+    "transaction" [shape=plaintext, label=<
+      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="6" BGCOLOR="white">
+        <TR><TD COLSPAN="3" BGCOLOR="#2E7D32"><FONT COLOR="white"><B>transaction</B></FONT></TD></TR>
+        <TR><TD ALIGN='LEFT'><B>id</B></TD><TD ALIGN='LEFT'>uuid</TD><TD ALIGN='LEFT'><FONT COLOR='#666'>PK NN</FONT></TD></TR>
+<TR><TD ALIGN='LEFT'><B>account_id</B></TD><TD ALIGN='LEFT'>uuid</TD><TD ALIGN='LEFT'><FONT COLOR='#666'>FK NN</FONT></TD></TR>
+<TR><TD ALIGN='LEFT'><B>asset_id</B></TD><TD ALIGN='LEFT'>uuid</TD><TD ALIGN='LEFT'><FONT COLOR='#666'>FK NN</FONT></TD></TR>
+<TR><TD ALIGN='LEFT'><B>kind</B></TD><TD ALIGN='LEFT'>varchar(10)</TD><TD ALIGN='LEFT'><FONT COLOR='#666'>NN</FONT></TD></TR>
+<TR><TD ALIGN='LEFT'><B>quantity</B></TD><TD ALIGN='LEFT'>numeric(20, 8)</TD><TD ALIGN='LEFT'><FONT COLOR='#666'>NN</FONT></TD></TR>
+<TR><TD ALIGN='LEFT'><B>price</B></TD><TD ALIGN='LEFT'>numeric(20, 8)</TD><TD ALIGN='LEFT'><FONT COLOR='#666'>&nbsp;</FONT></TD></TR>
+<TR><TD ALIGN='LEFT'><B>fee</B></TD><TD ALIGN='LEFT'>numeric(20, 8)</TD><TD ALIGN='LEFT'><FONT COLOR='#666'>NN</FONT></TD></TR>
+<TR><TD ALIGN='LEFT'><B>executed_at</B></TD><TD ALIGN='LEFT'>datetime</TD><TD ALIGN='LEFT'><FONT COLOR='#666'>NN</FONT></TD></TR>
+<TR><TD ALIGN='LEFT'><B>created_at</B></TD><TD ALIGN='LEFT'>datetime</TD><TD ALIGN='LEFT'><FONT COLOR='#666'>NN</FONT></TD></TR>
+      </TABLE>>];
+
+    "user" -> "account" [arrowhead=crow, arrowtail=none, dir=both, color="#555"];
+    "asset" -> "asset_price" [arrowhead=crow, arrowtail=none, dir=both, color="#555"];
+    "account" -> "transaction" [arrowhead=crow, arrowtail=none, dir=both, color="#555"];
+    "asset" -> "transaction" [arrowhead=crow, arrowtail=none, dir=both, color="#555"];
+}

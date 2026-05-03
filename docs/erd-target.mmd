@@ -1,0 +1,172 @@
+---
+title: Orion Portafolio - Modelo de datos objetivo (13 tablas)
+---
+erDiagram
+    user ||--o| user_profile : "tiene"
+    user ||--o{ account : "posee"
+    user ||--o{ transaction_import : "carga"
+    user ||--o{ portfolio_snapshot : "diario"
+    user ||--o{ alert_rule : "configura"
+    user ||--o{ alert : "recibe"
+    user ||--o{ recommendation : "recibe"
+
+    account ||--o{ transaction : "registra"
+    account ||--o{ position : "mantiene"
+    account ||--o{ alert_rule : "objetivo"
+
+    asset ||--o{ asset_price : "historico"
+    asset ||--o{ transaction : "operada"
+    asset ||--o{ position : "mantenida"
+    asset ||--o{ alert_rule : "objetivo"
+    asset ||--o{ recommendation : "sugerido"
+
+    transaction_import ||--o{ transaction : "origina"
+    alert_rule ||--o{ alert : "dispara"
+    recommendation_run ||--o{ recommendation : "produce"
+
+    user {
+        uuid id PK
+        text clerk_id UK
+        text email
+        timestamptz created_at
+    }
+
+    user_profile {
+        uuid user_id PK
+        text full_name
+        text phone
+        char country
+        enum risk_profile
+        char base_currency
+        timestamptz updated_at
+    }
+
+    account {
+        uuid id PK
+        uuid user_id FK
+        text name
+        text broker
+        char currency
+        timestamptz created_at
+    }
+
+    asset {
+        uuid id PK
+        text symbol UK
+        text name
+        enum kind
+        char currency
+        enum provider
+        text provider_symbol
+        text isin
+        timestamptz created_at
+    }
+
+    asset_price {
+        uuid asset_id PK
+        date date PK
+        numeric close
+        char currency
+        text source
+    }
+
+    transaction {
+        uuid id PK
+        uuid account_id FK
+        uuid asset_id FK
+        enum kind
+        numeric quantity
+        numeric price
+        numeric fee
+        timestamptz executed_at
+        uuid import_id FK
+        timestamptz created_at
+    }
+
+    transaction_import {
+        uuid id PK
+        uuid user_id FK
+        enum source_type
+        text original_filename
+        text storage_url
+        enum status
+        int rows_total
+        int rows_imported
+        jsonb errors
+        timestamptz created_at
+        timestamptz processed_at
+    }
+
+    position {
+        uuid account_id PK
+        uuid asset_id PK
+        numeric quantity
+        numeric avg_cost
+        numeric realized_pnl
+        numeric total_dividends
+        numeric total_fees
+        timestamptz last_transaction_at
+        timestamptz updated_at
+    }
+
+    portfolio_snapshot {
+        uuid user_id PK
+        date date PK
+        numeric total_value
+        numeric total_invested
+        numeric unrealized_pnl
+        numeric realized_pnl_period
+        jsonb breakdown_by_currency
+        jsonb breakdown_by_account
+    }
+
+    fx_rate {
+        date date PK
+        char base PK
+        char quote PK
+        numeric rate
+        text source
+    }
+
+    alert_rule {
+        uuid id PK
+        uuid user_id FK
+        enum kind
+        uuid target_asset_id FK
+        uuid target_account_id FK
+        numeric threshold_value
+        enum threshold_unit
+        bool enabled
+        timestamptz created_at
+    }
+
+    alert {
+        uuid id PK
+        uuid user_id FK
+        uuid rule_id FK
+        text title
+        text detail
+        enum severity
+        enum status
+        timestamptz triggered_at
+        timestamptz dismissed_at
+    }
+
+    recommendation_run {
+        uuid id PK
+        text algorithm_version
+        timestamptz started_at
+        timestamptz finished_at
+        int users_processed
+    }
+
+    recommendation {
+        uuid id PK
+        uuid user_id FK
+        uuid asset_id FK
+        numeric score
+        text reason
+        uuid run_id FK
+        enum status
+        timestamptz created_at
+    }
