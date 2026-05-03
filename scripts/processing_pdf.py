@@ -50,7 +50,7 @@ def extract_stocks_etf_1(pdf):
                     acciones_compradas = str_a_num(cleaned_row[5]) #float
                     rescate = us_a_num(cleaned_row[6])  #float
                     acciones_vendidas = str_a_num(cleaned_row[7])
-                    print("compra/venta", fecha, nombre_activo,  simbolo, categoria, aporte, acciones_compradas, rescate,acciones_vendidas)
+                    #print("compra/venta", fecha, nombre_activo,  simbolo, categoria, aporte, acciones_compradas, rescate,acciones_vendidas)
                     rows.append(["compra_venta", fecha, nombre_activo,  simbolo, categoria, aporte, acciones_compradas, rescate,acciones_vendidas])
                 else:
                     fecha = cleaned_row[0]
@@ -60,14 +60,67 @@ def extract_stocks_etf_1(pdf):
                     monto_bruto = us_a_num(cleaned_row[4])
                     monto_impuestos = us_a_num(cleaned_row[5])
                     monto_neto = us_a_num(cleaned_row[6])
-                    print("dividendos", fecha, nombre_activo, simbolo, categoria, monto_bruto, monto_impuestos, monto_neto)
+                    #print("dividendos", fecha, nombre_activo, simbolo, categoria, monto_bruto, monto_impuestos, monto_neto)
                     rows.append(["comdividendospra_venta", fecha, nombre_activo, simbolo, categoria, monto_bruto, monto_impuestos, monto_neto])
     return rows
 
 def extract_mutual_funds(pdf):
-    """Tu lógica para type2"""
-    return {...} 
+    rows = []
+    for page in pdf.pages:
+        tables = page.extract_tables()
+        for table in tables:
+            for row in table:
+                if not row or row[0] == "":
+                    continue
+
+                cleaned_row = []
+                for casilla in row:
+                    if casilla is not None:
+                        casilla = casilla.strip().replace("\n", "")
+                    else:
+                        casilla = ""
+                    cleaned_row.append(casilla)
+
+                if cleaned_row[0] == "Fecha":
+                    continue
+
+                fecha = cleaned_row[0]
+                nombre_inversion = cleaned_row[1]
+                nombre_fondo = cleaned_row[2]
+
+                aportes = str_a_num(cleaned_row[4])
+                rescate = str_a_num(cleaned_row[5])
+                valor_cuota = str_a_num(cleaned_row[6])
+
+                #print(fecha,nombre_inversion, nombre_fondo, aportes, rescate, valor_cuota)
+                rows.append([fecha,nombre_inversion, nombre_fondo, aportes, rescate, valor_cuota])
+    return rows 
 
 def extract_stocks_etf_2(pdf):
-    """Tu lógica para type3"""
-    return {...}
+    rows = []
+    for page in pdf.pages:
+        tables = page.extract_tables()
+        for table in tables:
+            for row in table:
+                if not row or row[0] == "":
+                    continue
+
+                cleaned_row = []
+                for casilla in row:
+                    if casilla is not None:
+                        casilla = casilla.strip().replace("\n", "")
+                    else:
+                        casilla = ""
+                    cleaned_row.append(casilla)
+
+                if cleaned_row[0] == "Activo" or cleaned_row[0] == "Total":
+                    continue
+
+                nombre_activo = cleaned_row[0]
+                num_acciones = float(cleaned_row[1])
+                balance = us_a_num(cleaned_row[2])
+
+
+                #print(nombre_activo, num_acciones, balance)
+                rows.append([nombre_activo, num_acciones, balance])
+    return rows
