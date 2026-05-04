@@ -7,6 +7,8 @@
 | `data-model.dbml` | Fuente de verdad del **modelo objetivo** (13 tablas) en sintaxis DBML | Se edita a mano. Pegar en https://dbdiagram.io para visualizar drag-and-drop |
 | `erd-target.mmd` | Mismo modelo objetivo en sintaxis Mermaid | Se edita a mano |
 | `erd-target.png` | PNG renderizado del ERD objetivo | `npx @mermaid-js/mermaid-cli mmdc -i erd-target.mmd -o erd-target.png -b white --width 2400` |
+| `erd-cardinalities.mmd` / `.png` | Mismo ERD pero con etiquetas explícitas **1:1** / **1:N** en cada relación (para profe/comité) | `npx @mermaid-js/mermaid-cli mmdc -i erd-cardinalities.mmd -o erd-cardinalities.png -b white --width 2600` |
+| `relationships.md` | Tabla resumen de las 18 relaciones con cardinalidad y significado | Editable a mano |
 | `domain-model.mmd` | **Modelo de dominio** (conceptual, sin tipos) en Mermaid | Se edita a mano |
 | `domain-model.png` | PNG renderizado del modelo de dominio | `npx @mermaid-js/mermaid-cli mmdc -i domain-model.mmd -o domain-model.png -b white --width 2200` |
 | `erd-mvp.dot` | DOT auto-generado del **MVP implementado** (5 tablas) | `python -m scripts.generate_erd_mvp` |
