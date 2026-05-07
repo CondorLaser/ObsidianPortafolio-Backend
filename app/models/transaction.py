@@ -4,12 +4,12 @@ from datetime import datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
-from sqlalchemy import DateTime, Enum, ForeignKey, Index, Numeric
+from sqlalchemy import DateTime, Enum, ForeignKey, Index, Numeric, Date
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, TimestampMixin
-
+from datetime import datetime, date
 if TYPE_CHECKING:
     from app.models.account import Account
     from app.models.asset import Asset
@@ -56,6 +56,7 @@ class Transaction(Base, TimestampMixin):
     executed_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False
     )
+    date_: Mapped[date | None] = mapped_column("date", Date, nullable=True)
 
     account: Mapped["Account"] = relationship(back_populates="transactions")
     asset: Mapped["Asset"] = relationship(back_populates="transactions")

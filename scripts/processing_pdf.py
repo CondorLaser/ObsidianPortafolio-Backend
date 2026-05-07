@@ -12,11 +12,14 @@ def str_a_num(x):
 def us_a_num(x):
   return str_a_num(x[4:])
 
+def cpl_a_num(x):
+  return str_a_num(x[1:])
 
 
 def extract_stocks_etf_1(pdf):
     compra_venta = True #TRUE SI ESTOY EN COMPRAVENTA Y FALSE EN DIVIDENDOS
-    rows =[]
+    rows_compraventa =[]
+    rows_dividendos =[]
     for page in pdf.pages:
         tables = page.extract_tables()
         for table in tables:
@@ -51,7 +54,7 @@ def extract_stocks_etf_1(pdf):
                     rescate = us_a_num(cleaned_row[6])  #float
                     acciones_vendidas = str_a_num(cleaned_row[7])
                     #print("compra/venta", fecha, nombre_activo,  simbolo, categoria, aporte, acciones_compradas, rescate,acciones_vendidas)
-                    rows.append(["compra_venta", fecha, nombre_activo,  simbolo, categoria, aporte, acciones_compradas, rescate,acciones_vendidas])
+                    rows_compraventa.append([ fecha, nombre_activo,  simbolo, categoria, aporte, acciones_compradas, rescate,acciones_vendidas])
                 else:
                     fecha = cleaned_row[0]
                     nombre_activo = cleaned_row[1]
@@ -61,8 +64,8 @@ def extract_stocks_etf_1(pdf):
                     monto_impuestos = us_a_num(cleaned_row[5])
                     monto_neto = us_a_num(cleaned_row[6])
                     #print("dividendos", fecha, nombre_activo, simbolo, categoria, monto_bruto, monto_impuestos, monto_neto)
-                    rows.append(["comdividendospra_venta", fecha, nombre_activo, simbolo, categoria, monto_bruto, monto_impuestos, monto_neto])
-    return rows
+                    rows_dividendos.append([ fecha, nombre_activo, simbolo, categoria, monto_bruto, monto_impuestos, monto_neto])
+    return [rows_compraventa, rows_dividendos]
 
 def extract_mutual_funds(pdf):
     rows = []
@@ -87,13 +90,16 @@ def extract_mutual_funds(pdf):
                 fecha = cleaned_row[0]
                 nombre_inversion = cleaned_row[1]
                 nombre_fondo = cleaned_row[2]
+                serie_fondo = cleaned_row[3]
 
                 aportes = str_a_num(cleaned_row[4])
                 rescate = str_a_num(cleaned_row[5])
-                valor_cuota = str_a_num(cleaned_row[6])
+                #valor_cuota = str_a_num(cleaned_row[6])
+                aportes_cpl = cpl_a_num(cleaned_row[8])
+                rescate_cpl = cpl_a_num(cleaned_row[9])
 
                 #print(fecha,nombre_inversion, nombre_fondo, aportes, rescate, valor_cuota)
-                rows.append([fecha,nombre_inversion, nombre_fondo, aportes, rescate, valor_cuota])
+                rows.append([fecha,nombre_inversion, nombre_fondo, serie_fondo,  aportes, rescate,  aportes_cpl, rescate_cpl ])
     return rows 
 
 def extract_stocks_etf_2(pdf):
