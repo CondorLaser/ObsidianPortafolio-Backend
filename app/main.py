@@ -3,6 +3,7 @@ load_dotenv()
 from fastapi import FastAPI, Depends
 from app.core.auth import verify_token
 from fastapi.middleware.cors import CORSMiddleware
+from app.routes.webhooks import router as webhook_router
 import os
 
 app = FastAPI(
@@ -31,3 +32,5 @@ def protected(user = Depends(verify_token)):
         "message": "Access granted",
         "user_id": user["sub"]
     }
+
+app.include_router(webhook_router)
