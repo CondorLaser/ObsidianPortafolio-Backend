@@ -10,3 +10,4 @@ python-jose
 requests
 svix
 psycopg2
+sqlalchemy
