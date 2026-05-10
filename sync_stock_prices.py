@@ -19,7 +19,7 @@ base_params = {
 
 
 def get_last_stored_date(cur, asset_id: int):
-    cur.execute("SELECT MAX(date) FROM asset_prices WHERE asset_id = %s", (asset_id,))
+    cur.execute("SELECT MAX(date) FROM asset_price WHERE asset_id = %s", (asset_id,))
     return cur.fetchone()[0]
 
 
@@ -51,7 +51,7 @@ def upload_neon(cur, conn, price_data: list[tuple]): #sube a la bdd
     execute_values(
         cur,
         """
-        INSERT INTO asset_prices (asset_id, date, close, source, currency)
+        INSERT INTO asset_price (asset_id, date, close, source, currency)
         VALUES %s
         ON CONFLICT (asset_id, date) DO NOTHING
         """,
