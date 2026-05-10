@@ -13,3 +13,6 @@ httpx
 
 python-jose
 requests
+psycopg2-binary
+pandas
+pdfplumber
