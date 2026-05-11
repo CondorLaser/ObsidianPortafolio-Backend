@@ -14,11 +14,11 @@ import uuid
 router = APIRouter(prefix="/pdf", tags=["pdf"])
 
 
-
-async def get_current_user(): #solo para testing
-    class FakeUser:
-        id = 1
-    return FakeUser()
+# DESCOMENTAR SI NO SE USA CLERK (VA A FALLAR POR EL TOKEN)
+#async def get_current_user(): 
+#    class FakeUser:
+#        id = 1
+#    return FakeUser()
 
 
 
@@ -29,11 +29,12 @@ async def upload_pdf_type1(
     account_id: uuid.UUID = Form(...),
     db: AsyncSession = Depends(get_db)
 ):
-    #COMENTADO PORQUE NO HAY USERS EN LA BDD
-    #verificar el usuario/cuenta
-    #account = await get_for_user(db, user.id, account_id)
-    #if not account:
-    #    raise HTTPException(status_code=403, detail="Cuenta no autorizada")
+
+    #verificar el usuario/cuenta 
+    # ESTO NO SE HA PROBADO, YA QUE NO SE GUARDAN LOS USERS EN LA BDD COMENTAR PARA PROBAR
+    account = await account_repo.get_for_user(db, user.id, account_id)
+    if not account:
+        raise HTTPException(status_code=403, detail="Cuenta no autorizada")
 
     content = await file.read()
 
@@ -57,11 +58,11 @@ async def upload_pdf_type2(
     account_id: uuid.UUID = Form(...),
 ):
 
-    #COMENTADO PORQUE NO HAY USERS EN LA BDD
     #verificar el usuario/cuenta
-    #account = await get_for_user(db, user.id, account_id)
-    #if not account:
-    #    raise HTTPException(status_code=403, detail="Cuenta no autorizada")
+        # ESTO NO SE HA PROBADO, YA QUE NO SE GUARDAN LOS USERS EN LA BDD COMENTAR PARA PROBAR
+    account = await account_repo.get_for_user(db, user.id, account_id)
+    if not account:
+        raise HTTPException(status_code=403, detail="Cuenta no autorizada")
 
     content = await file.read()
     try:

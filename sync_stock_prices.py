@@ -81,7 +81,7 @@ def sync_symbol(cur, conn, symbol: str, asset_id: int):
 
 conn = psycopg2.connect(os.environ["DATABASE_URL"])
 cur = conn.cursor()
-cur.execute("SELECT id, symbol FROM asset")
+cur.execute("SELECT id, symbol FROM asset WHERE kind = 'stock'") #solo las acciones NO ETF NI FONDOS MUTUOS
 symbol_to_id = {symbol: id for id, symbol in cur.fetchall()}
 
 for i, (symbol, asset_id) in enumerate(symbol_to_id.items()):
