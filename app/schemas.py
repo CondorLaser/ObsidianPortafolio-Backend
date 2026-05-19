@@ -72,3 +72,13 @@ class AssetDetailResponse(BaseModel):
         from_attributes = True
 
 
+class UserResponse(BaseModel):
+    id: UUID
+    clerk_id: str
+    email: str | None
+    created_at: datetime
+    risk_profile: str | None
+
+    class Config:
+        from_attributes = True
+

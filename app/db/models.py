@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, DateTime, Date, Numeric, ForeignKey
+from sqlalchemy import Column, String, DateTime, Date, Numeric, ForeignKey, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 
@@ -77,4 +77,13 @@ class Transaction(Base):
         back_populates="transactions"
     )
 
+
+class User(Base):
+    __tablename__ = "user"
+
+    id = Column(UUID(as_uuid=True), primary_key=True)
+    clerk_id = Column(String, nullable=False, index=True)
+    email = Column(String)
+    created_at = Column(DateTime(timezone=True), nullable=False)
+    risk_profile = Column(Text)
 

@@ -9,15 +9,34 @@ JWKS_URL = f"{CLERK_ISSUER}/.well-known/jwks.json"
 
 security = HTTPBearer()
 
-jwks = requests.get(JWKS_URL).json()
+
+def get_jwks():
+    """Obtiene las keys de Clerk (JWKS)"""
+    return requests.get(JWKS_URL).json()
+
 
 def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
     token = credentials.credentials
 
     try:
-        header = jwt.get_unverified_header(token)
+        jwks = get_jwks()
 
-        key = next(k for k in jwks["keys"] if k["kid"] == header["kid"])
+        header = jwt.get_unverified_header(token)
+        kid = header.get("kid")
+
+        print("🔑 TOKEN KID:", kid)
+
+        key = next(
+            (k for k in jwks["keys"] if k["kid"] == kid),
+            None
+        )
+
+        if not key:
+            print("❌ KEY NOT FOUND FOR KID")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid token (kid not found)"
+            )
 
         payload = jwt.decode(
             token,
@@ -26,13 +45,20 @@ def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
             issuer=CLERK_ISSUER,
         )
 
+        print("👤 TOKEN SUB:", payload.get("sub"))
+
         return payload
 
+    except HTTPException:
+        raise
+
     except Exception as e:
+        print("❌ AUTH ERROR:", str(e))
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid token"
         )
+
 
 def get_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
     if not credentials:
@@ -40,5 +66,5 @@ def get_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="No credentials provided"
         )
-    
+
     return credentials.credentials

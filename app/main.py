@@ -7,6 +7,7 @@ import os
 
 from app.routes.webhooks import router as webhook_router
 from app.routes.assets import router as assets_router
+from app.routes.profile import router as profile_router
 
 app = FastAPI(
     title="Obsidian Portafolio API"
@@ -32,8 +33,9 @@ def read_root():
 def protected(user = Depends(verify_token)):
     return {
         "message": "Access granted",
-        "user_id": user["sub"]
+        "clerk_id": user["sub"]
     }
 
 app.include_router(webhook_router)
 app.include_router(assets_router)
+app.include_router(profile_router)
