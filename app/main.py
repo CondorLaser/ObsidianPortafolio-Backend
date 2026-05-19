@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.auth import verify_token
 from app.core.config import get_settings
-from app.routers import accounts, assets, positions, prices, transactions
+from app.routers import accounts, assets, positions, prices, transactions, users, heartbeat
 
 settings = get_settings()
 
@@ -41,3 +41,5 @@ app.include_router(assets.router, prefix=API_PREFIX)
 app.include_router(prices.router, prefix=API_PREFIX)
 app.include_router(transactions.router, prefix=API_PREFIX)
 app.include_router(positions.router, prefix=API_PREFIX)
+app.include_router(users.router, prefix=API_PREFIX)
+app.include_router(heartbeat.router, prefix=API_PREFIX)

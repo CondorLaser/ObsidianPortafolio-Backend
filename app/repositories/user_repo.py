@@ -20,3 +20,21 @@ async def get_or_create_by_clerk_id(
 
     result = await session.execute(select(User).where(User.clerk_id == clerk_id))
     return result.scalar_one()
+
+
+async def update_risk_profile(
+    db: AsyncSession,
+    user_id: str,
+    risk_profile: str,
+):
+    result = await db.execute(
+        select(User).where(User.id == user_id)
+    )
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="404 user not found")
+    
+    user.risk_profile = risk_profile
+    await db.commit()
+    await db.refresh(user)
+    return user
