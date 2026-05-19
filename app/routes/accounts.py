@@ -67,7 +67,6 @@ def get_account_by_id(
             SELECT *
             FROM dividends
             WHERE account_id = :account_id
-            ORDER BY ex_date DESC
         """),
         {"account_id": str(account_id)}
     )
@@ -86,7 +85,6 @@ def get_account_by_id(
             SELECT *
             FROM transactions
             WHERE account_id = :account_id
-            ORDER BY transaction_date DESC
         """),
         {"account_id": str(account_id)}
     )
@@ -105,6 +103,6 @@ def get_account_by_id(
 
 Comando para testear:
 
-curl -X GET http://localhost:8000/accounts/4509d693-628a-484e-873e-ba3d214340b7 -H "Authorization: Bearer eyJhbGciOiJSUzI1NiIsImNhdCI6ImNsX0I3ZDRQRDExMUFBQSIsImtpZCI6Imluc18zQ1VXOWx6QVQyUGtTbXVnRWxiZ2E4bnFnQjAiLCJvaWF0IjoxNzc5MjMwMjg0LCJ0eXAiOiJKV1QifQ.eyJhenAiOiJodHRwczovL29ic2lkaWFuLXBvcnRhZm9saW8tZnJvbnRlbmQudmVyY2VsLmFwcCIsImV4cCI6MTc3OTIzMDM0NCwiZnZhIjpbMjksLTFdLCJpYXQiOjE3NzkyMzAyODQsImlzcyI6Imh0dHBzOi8vd29ydGh5LWphY2thbC04MC5jbGVyay5hY2NvdW50cy5kZXYiLCJuYmYiOjE3NzkyMzAyNzQsInNpZCI6InNlc3NfM0R4ZkNHSXBmdnVvZHljYTVxVGZ5NDdUeFVmIiwic3RzIjoiYWN0aXZlIiwic3ViIjoidXNlcl8zRFFEaE1TYkpsQTdaaVR5S1hYeGxRaGpjMDgiLCJ2IjoyfQ.nukC3W7dLwX2mh_mHWYmeMkz-EV3VbcACnVA-zOwGNLeIg7hnQOzU_aV-Hs6qa3b0GrHseaXATftL-ir4Qu60eBVD1par-CgFC-O0LCsiROcgrp2jvd_iGmvKmIa880H3owWbexx_JFLceS-IC8fZdIpKi3o2Xupw71gg-inoEoh-P8ETZDMBORb2oh-CEiu12iW9mRI66IWely_OPMp6cwatZikfxHd9XrG8HRXoUI8JQIVHGgNcm3yP55D7j4qjiRI_Mrj_lPFQW-ib1KIBDWGXpVt9oWZr9CMXFrd-zA-QRZRF-tHc7slYZma6u_u8IcM3eYDBeyNaQk0CFG0mg"
+curl -X GET http://localhost:8000/accounts/11833de7-4d95-4e97-a8f0-4615df01fccd -H "Authorization: Bearer eyJhbGciOiJSUzI1NiIsImNhdCI6ImNsX0I3ZDRQRDExMUFBQSIsImtpZCI6Imluc18zQ1VXOWx6QVQyUGtTbXVnRWxiZ2E4bnFnQjAiLCJvaWF0IjoxNzc5MjMwODE3LCJ0eXAiOiJKV1QifQ.eyJhenAiOiJodHRwczovL29ic2lkaWFuLXBvcnRhZm9saW8tZnJvbnRlbmQudmVyY2VsLmFwcCIsImV4cCI6MTc3OTIzMDg3NywiZnZhIjpbMzgsLTFdLCJpYXQiOjE3NzkyMzA4MTcsImlzcyI6Imh0dHBzOi8vd29ydGh5LWphY2thbC04MC5jbGVyay5hY2NvdW50cy5kZXYiLCJuYmYiOjE3NzkyMzA4MDcsInNpZCI6InNlc3NfM0R4ZkNHSXBmdnVvZHljYTVxVGZ5NDdUeFVmIiwic3RzIjoiYWN0aXZlIiwic3ViIjoidXNlcl8zRFFEaE1TYkpsQTdaaVR5S1hYeGxRaGpjMDgiLCJ2IjoyfQ.VuvqVL3qenUZLGTMuH99VAQYh6yLcZnYYb_7RZ11QvIQkr3TNGsSCPDgkOwpL38buoT0LHohm4deFWW-YlnjKcE6bPcdxvjirycYzTct6K6NJ8CYPub1IZNpKHCRjBGxalUPrrz2AQxtsi6XEQEj8fiNDJ0Mgz3U84EPL0uj54FTI45qFKLnfTCaPWSfloRRbLI4q97Qp1wAIEBv1VzI1ZwoJJFj3r53c0S1EWtATgp0rfr9LkxpftvAO0M19zbvXfG8EAuxc4dMH8REweonDFQBEWYxiDwaMp50zzi3V_PC45PVr3bWge0lSCyYp6giTRW1uxDc2kaGMyYhNVBauA"
 
 '''
