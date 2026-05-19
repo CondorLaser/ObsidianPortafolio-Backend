@@ -5,7 +5,7 @@ from datetime import datetime, date
 from decimal import Decimal
 
 
-class AssetResponse(BaseModel):
+class AssetsResponse(BaseModel):
     id: UUID
     symbol: str
     name: str
@@ -65,8 +65,6 @@ class AssetDetailResponse(BaseModel):
     currency: str
     created_at: datetime
     prices: list[AssetPriceResponse]
-    dividends: list[DividendResponse]
-    transactions: list[TransactionResponse]
 
     class Config:
         from_attributes = True

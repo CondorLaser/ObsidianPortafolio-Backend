@@ -2,19 +2,15 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session, joinedload
-from sqlalchemy import or_
+from sqlalchemy import or_, text
 
 from app.db.database import get_db
-from app.db.models import Asset
-from app.schemas import (
-    AssetResponse,
-    AssetDetailResponse
-)
+from app.schemas import AssetsResponse, AssetDetailResponse
 
 router = APIRouter()
 
 
-@router.get("/assets", response_model=list[AssetResponse])
+@router.get("/assets", response_model=list[AssetsResponse])
 def get_assets(
     symbol: str | None = None,
     kind: str | None = None,
@@ -23,26 +19,32 @@ def get_assets(
 
     db: Session = Depends(get_db)
 ):
-    query = db.query(Asset)
+    sql = """
+        SELECT * FROM assets WHERE 1=1
+    """
+
+    params = {}
 
     if symbol:
-        query = query.filter(Asset.symbol == symbol)
-
+        sql += " AND symbol = :symbol"
+        params["symbol"] = symbol
     if kind:
-        query = query.filter(Asset.kind == kind)
-
+        sql += " AND kind = :kind"
+        params["kind"] = kind
     if currency:
-        query = query.filter(Asset.currency == currency)
-
+        sql += " AND currency = :currency"
+        params["currency"] = currency
     if search:
-        query = query.filter(
-            or_(
-                Asset.symbol.ilike(f"%{search}%"),
-                Asset.name.ilike(f"%{search}%")
+        sql += """
+            AND (
+                symbol ILIKE :search
+                OR name ILIKE :search
             )
-        )
+        """
+        params["search"] = f"%{search}%"
 
-    assets = query.all()
+    result = db.execute(text(sql), params)
+    assets = result.mappings().all()
 
     return assets
 
@@ -55,22 +57,33 @@ def get_asset_by_id(
     asset_id: UUID,
     db: Session = Depends(get_db)
 ):
-
-    asset = (
-        db.query(Asset)
-        .options(
-            joinedload(Asset.prices),
-            joinedload(Asset.dividends),
-            joinedload(Asset.transactions)
-        )
-        .filter(Asset.id == asset_id)
-        .first()
+    asset_result = db.execute(
+        text("""
+            SELECT * FROM assets WHERE id = :asset_id
+        """),
+        {"asset_id": str(asset_id)}
     )
 
-    if not asset:
+    asset_row = asset_result.mappings().first()
+
+    if not asset_row:
         raise HTTPException(
             status_code=404,
             detail="Asset not found"
         )
+    
+    asset = dict(asset_row)
+    
+    prices_result = db.execute(
+        text("""
+            SELECT *
+            FROM asset_prices
+            WHERE asset_id = :asset_id
+            ORDER BY date DESC
+        """),
+        {"asset_id": str(asset_id)}
+    )
+
+    asset["prices"] = prices_result.mappings().all()
 
     return asset
