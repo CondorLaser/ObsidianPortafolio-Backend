@@ -8,6 +8,7 @@ import os
 from app.routes.webhooks import router as webhook_router
 from app.routes.assets import router as assets_router
 from app.routes.profile import router as profile_router
+from app.routes.accounts import router as accounts_router
 
 app = FastAPI(
     title="Obsidian Portafolio API"
@@ -39,3 +40,4 @@ def protected(user = Depends(verify_token)):
 app.include_router(webhook_router)
 app.include_router(assets_router)
 app.include_router(profile_router)
+app.include_router(accounts_router)

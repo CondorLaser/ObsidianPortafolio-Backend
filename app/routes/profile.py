@@ -1,15 +1,15 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy.orm import Session, joinedload
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session
 from sqlalchemy import text
 
 from app.db.database import get_db
-from app.schemas import ProfileResponse, DividendResponse, TransactionResponse
+from app.schemas import ProfileResponse
 from app.core.auth import verify_token
 
-router = APIRouter(prefix="/profile", tags=["profile"])
+router = APIRouter()
 
 
-@router.get("", response_model=ProfileResponse)
+@router.get("/profile", response_model=ProfileResponse)
 def get_profile(
     db: Session = Depends(get_db),
     user=Depends(verify_token)
@@ -37,48 +37,12 @@ def get_profile(
 
     return dict(profile)
 
-'''
-@router.get("/dividends")
-def get_dividends(
-    db: Session = Depends(get_db),
-    user_token=Depends(verify_token)
-):
-    clerk_id = user_token["sub"]
 
-    user = get_user_from_clerk(db, clerk_id)
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-
-    return (
-        db.query(Dividend)
-        .filter(Dividend.account_id == user.id)
-        .all()
-    )
-
-@router.get("/transactions")
-def get_transactions(
-    db: Session = Depends(get_db),
-    user_token=Depends(verify_token)
-):
-    clerk_id = user_token["sub"]
-
-    user = get_user_from_clerk(db, clerk_id)
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-
-    transactions = (
-        db.query(Transaction)
-        .filter(Transaction.account_id == user.id)
-        .all()
-    )
-
-    return transactions
-'''
 
 '''
 
 Comando para testear:
 
-curl -X GET http://localhost:8000/profile -H "Authorization: Bearer eyJhbGciOiJSUzI1NiIsImNhdCI6ImNsX0I3ZDRQRDExMUFBQSIsImtpZCI6Imluc18zQ1VXOWx6QVQyUGtTbXVnRWxiZ2E4bnFnQjAiLCJvaWF0IjoxNzc5MjI4NjQ2LCJ0eXAiOiJKV1QifQ.eyJhenAiOiJodHRwczovL29ic2lkaWFuLXBvcnRhZm9saW8tZnJvbnRlbmQudmVyY2VsLmFwcCIsImV4cCI6MTc3OTIyODcwNiwiZnZhIjpbMiwtMV0sImlhdCI6MTc3OTIyODY0NiwiaXNzIjoiaHR0cHM6Ly93b3J0aHktamFja2FsLTgwLmNsZXJrLmFjY291bnRzLmRldiIsIm5iZiI6MTc3OTIyODYzNiwic2lkIjoic2Vzc18zRHhmQ0dJcGZ2dW9keWNhNXFUZnk0N1R4VWYiLCJzdHMiOiJhY3RpdmUiLCJzdWIiOiJ1c2VyXzNEUURoTVNiSmxBN1ppVHlLWFh4bFFoamMwOCIsInYiOjJ9.pyhWxkFCljn72F_HkKwW1dEPiHuDnSJgxR5w7Y8oyXhK9WakqAL_chA-IfB4RSu44pgX0enGiul8e8MQpGPAG85oKc0vKSt7-HA0oUGEx_JYXm8inqL3g0lV8b4vS6tgTa2kLdMhzvhpUdezzyYepYUctI1JYAH2z2gDmuv4xC0Cpa73upiOiM6svNUlCSZMSvBR8n91707yvRFJq9T7ReBVcQW0xifkUPEl7hYVbldvzpJzeKYxQUqYaC8Box0X7PNAIxltmlr0RyVfV2DCjQ9LHM-xnU0sD5dZR-brXADCcNQS5DWlBy2kRxfW-aw1_2Fu-wqeQOsqoGriFYHUGw"
+curl -X GET http://localhost:8000/profile -H "Authorization: Bearer eyJhbGciOiJSUzI1NiIsImNhdCI6ImNsX0I3ZDRQRDExMUFBQSIsImtpZCI6Imluc18zQ1VXOWx6QVQyUGtTbXVnRWxiZ2E4bnFnQjAiLCJvaWF0IjoxNzc5MjI5MjY0LCJ0eXAiOiJKV1QifQ.eyJhenAiOiJodHRwczovL29ic2lkaWFuLXBvcnRhZm9saW8tZnJvbnRlbmQudmVyY2VsLmFwcCIsImV4cCI6MTc3OTIyOTMyNCwiZnZhIjpbMTIsLTFdLCJpYXQiOjE3NzkyMjkyNjQsImlzcyI6Imh0dHBzOi8vd29ydGh5LWphY2thbC04MC5jbGVyay5hY2NvdW50cy5kZXYiLCJuYmYiOjE3NzkyMjkyNTQsInNpZCI6InNlc3NfM0R4ZkNHSXBmdnVvZHljYTVxVGZ5NDdUeFVmIiwic3RzIjoiYWN0aXZlIiwic3ViIjoidXNlcl8zRFFEaE1TYkpsQTdaaVR5S1hYeGxRaGpjMDgiLCJ2IjoyfQ.DFLPnOXZjIBY0vpsM5x8XKQPl5TKevsu6-isXrh6Jiq7Z7FwErwVtz0QeUOOUCQeyV9d5NtjPPasxRMiYJ2dh7DWHRH606s9SURGZL6KkxnmO_wUrV1gVhD-1PD38aBsUSTk2ei5_6namZWfkAf6Ey2U6rdn_Z0bFaUadpVD2cfJuEkbqBGay8IKxesbc13decv_EG_s-qRlaWskiQlXJtHzBO7aYZFDOHmWxG6xNRyg5MnjIcGP2FVYA51oGfzXwpwHKy_t4rbwbJW4Rwwt8t9Tw7RwlYNQkfx8j53h04Vz_S4TfEuD8U_js0V5NfKw1-DfvQHC0Sxlt-8olnDXwA"
 
 '''
