@@ -50,7 +50,7 @@ async def clerk_webhook(request: Request):
 
         cur.execute(
             """
-            INSERT INTO "user" (clerk_id, email)
+            INSERT INTO "profiles" (clerk_id, email)
             VALUES (%s, %s)
             ON CONFLICT (clerk_id) DO NOTHING
             """,
