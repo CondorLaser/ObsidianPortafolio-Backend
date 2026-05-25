@@ -13,6 +13,7 @@ httpx
 
 python-jose
 requests
+svix
 
 # Ingesta (PDFs Fintual + sync de precios por GitHub Action)
 pdfplumber

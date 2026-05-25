@@ -2,6 +2,7 @@ import uuid
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.models.account import Account
 from app.schemas.account import AccountCreate
@@ -34,6 +35,22 @@ async def get_for_user(
     result = await session.execute(
         select(Account).where(
             Account.id == account_id, Account.user_id == user_id
+        )
+    )
+    return result.scalar_one_or_none()
+
+
+async def get_for_user_with_detail(
+    session: AsyncSession,
+    user_id: uuid.UUID,
+    account_id: uuid.UUID,
+) -> Account | None:
+    result = await session.execute(
+        select(Account)
+        .where(Account.id == account_id, Account.user_id == user_id)
+        .options(
+            selectinload(Account.transactions),
+            selectinload(Account.dividends),
         )
     )
     return result.scalar_one_or_none()

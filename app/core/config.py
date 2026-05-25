@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     )
 
     CLERK_ISSUER: str | None = None
+    CLERK_WEBHOOK_SECRET: str | None = None
     ALLOWED_ORIGINS: str = ""
 
     @staticmethod
