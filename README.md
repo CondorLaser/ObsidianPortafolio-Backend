@@ -2,7 +2,28 @@
 
 API en FastAPI para Orion Portafolio. Auth vía Clerk (JWT), persistencia en Postgres con SQLAlchemy 2.0 async + Alembic.
 
-## Preparación del entorno
+## Quick start (recomendado): Docker Compose
+
+```bash
+cp .env.example .env.local        # edita .env.local con tus valores Clerk (no entra al repo)
+docker compose up --build
+```
+
+Levanta dos contenedores: `orion-postgres` (Postgres 16 con volumen `orion_pgdata`) y `orion-api` (FastAPI con hot-reload). El stack corre `alembic upgrade head` antes de arrancar uvicorn, así la DB queda con el schema al día. Swagger: <http://localhost:8000/docs>. Postgres expuesto en `localhost:5433` para psql/pgAdmin.
+
+Comandos útiles dentro del stack:
+
+```bash
+docker compose exec api alembic revision --autogenerate -m "describe change"
+docker compose exec db   psql -U orion -d orion_dev
+docker compose exec api  python -m scripts.smoke_test
+docker compose down                       # detiene; persiste el volumen
+docker compose down -v                    # detiene y borra la DB (clean slate)
+```
+
+## Preparación del entorno (sin Docker, opcional)
+
+Si preferís correrlo nativo (sin `docker compose up`):
 
 ```bash
 python -m venv venv
