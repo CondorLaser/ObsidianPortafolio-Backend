@@ -8,6 +8,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.models.base import Base, TimestampMixin
 
 if TYPE_CHECKING:
+    from app.models.dividend import Dividend
     from app.models.transaction import Transaction
     from app.models.user import User
 
@@ -34,6 +35,10 @@ class Account(Base, TimestampMixin):
 
     user: Mapped["User"] = relationship(back_populates="accounts")
     transactions: Mapped[list["Transaction"]] = relationship(
+        back_populates="account",
+        cascade="all, delete-orphan",
+    )
+    dividends: Mapped[list["Dividend"]] = relationship(
         back_populates="account",
         cascade="all, delete-orphan",
     )

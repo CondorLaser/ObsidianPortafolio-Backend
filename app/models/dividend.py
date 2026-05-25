@@ -1,12 +1,17 @@
 import uuid
 from datetime import date as date_type
 from decimal import Decimal
+from typing import TYPE_CHECKING
 
 from sqlalchemy import Date, ForeignKey, Index, Numeric
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, TimestampMixin
+
+if TYPE_CHECKING:
+    from app.models.account import Account
+    from app.models.asset import Asset
 
 
 class Dividend(Base, TimestampMixin):
@@ -37,3 +42,6 @@ class Dividend(Base, TimestampMixin):
     gross_amount: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
     tax_amount: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
     net_amount: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
+
+    account: Mapped["Account"] = relationship(back_populates="dividends")
+    asset: Mapped["Asset"] = relationship()
