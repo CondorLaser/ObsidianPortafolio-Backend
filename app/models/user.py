@@ -1,7 +1,8 @@
+import enum
 import uuid
 from typing import TYPE_CHECKING
 
-from sqlalchemy import String
+from sqlalchemy import Enum, String
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -9,6 +10,12 @@ from app.models.base import Base, TimestampMixin
 
 if TYPE_CHECKING:
     from app.models.account import Account
+
+
+class RiskProfile(str, enum.Enum):
+    conservative = "conservative"
+    moderate = "moderate"
+    aggressive = "aggressive"
 
 
 class User(Base, TimestampMixin):
@@ -23,6 +30,9 @@ class User(Base, TimestampMixin):
         String, unique=True, nullable=False, index=True
     )
     email: Mapped[str | None] = mapped_column(String, nullable=True)
+    risk_profile: Mapped[RiskProfile | None] = mapped_column(
+        Enum(RiskProfile, name="risk_profile"), nullable=True
+    )
 
     accounts: Mapped[list["Account"]] = relationship(
         back_populates="user",
