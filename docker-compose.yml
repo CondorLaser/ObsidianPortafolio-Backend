@@ -1,0 +1,52 @@
+# Stack de desarrollo local — un `docker compose up` levanta DB + API.
+# Para apuntar a Neon en prod NO se usa este archivo: Render corre la imagen del
+# Dockerfile con APP_ENV=prod + DATABASE_URL=<neon>, sin contenedor de DB local.
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: orion-postgres
+    environment:
+      POSTGRES_USER: orion
+      POSTGRES_PASSWORD: orion
+      POSTGRES_DB: orion_dev
+    ports:
+      - "5433:5432"          # expuesto en host:5433 para herramientas (psql, pgAdmin)
+    volumes:
+      - orion_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U orion -d orion_dev"]
+      interval: 2s
+      timeout: 3s
+      retries: 20
+
+  api:
+    build: .
+    container_name: orion-api
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      APP_ENV: dev
+      # Override directo: dentro del compose net, db es el hostname del servicio.
+      # Esto pisa DATABASE_URL_DEV del .env (que apunta a localhost:5433).
+      DATABASE_URL: postgresql+asyncpg://orion:orion@db:5432/orion_dev
+      CLERK_ISSUER: ${CLERK_ISSUER:-}
+      CLERK_WEBHOOK_SECRET: ${CLERK_WEBHOOK_SECRET:-}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:3000}
+    env_file:
+      - .env.local       # opcional; si no existe, docker compose lo ignora
+    ports:
+      - "8000:8000"
+    volumes:
+      # Hot reload: cambios en el host se reflejan dentro del contenedor.
+      - ./app:/app/app
+      - ./alembic:/app/alembic
+      - ./alembic.ini:/app/alembic.ini
+      - ./scripts:/app/scripts
+    command: >
+      sh -c "alembic upgrade head &&
+             uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+
+volumes:
+  orion_pgdata:
