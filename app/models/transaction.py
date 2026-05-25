@@ -1,10 +1,10 @@
 import enum
 import uuid
-from datetime import datetime
+from datetime import date as date_type, datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
-from sqlalchemy import DateTime, Enum, ForeignKey, Index, Numeric
+from sqlalchemy import Date, DateTime, Enum, ForeignKey, Index, Numeric
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -56,6 +56,10 @@ class Transaction(Base, TimestampMixin):
     executed_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False
     )
+    # `date` (sin tz) usado por la ingesta de PDF cuando solo se conoce el día,
+    # no la hora exacta. Nullable: los registros existentes y los creados vía
+    # API mantienen el `executed_at` como fuente canónica.
+    date_: Mapped[date_type | None] = mapped_column("date", Date, nullable=True)
 
     account: Mapped["Account"] = relationship(back_populates="transactions")
     asset: Mapped["Asset"] = relationship(back_populates="transactions")
