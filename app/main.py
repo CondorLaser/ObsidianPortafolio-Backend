@@ -10,6 +10,7 @@ from app.core.config import get_settings
 from app.routers import (
     accounts,
     assets,
+    dividends,
     heartbeat,
     pdf,
     positions,
@@ -49,6 +50,7 @@ API_PREFIX = "/api/v1"
 app.include_router(heartbeat.router, prefix=API_PREFIX)
 app.include_router(accounts.router, prefix=API_PREFIX)
 app.include_router(assets.router, prefix=API_PREFIX)
+app.include_router(dividends.router, prefix=API_PREFIX)
 app.include_router(prices.router, prefix=API_PREFIX)
 app.include_router(transactions.router, prefix=API_PREFIX)
 app.include_router(positions.router, prefix=API_PREFIX)

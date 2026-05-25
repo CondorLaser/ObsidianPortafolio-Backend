@@ -3,6 +3,9 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.schemas.dividend import DividendRead
+from app.schemas.transaction import TransactionRead
+
 
 class AccountBase(BaseModel):
     name: str
@@ -20,3 +23,8 @@ class AccountRead(AccountBase):
     id: uuid.UUID
     user_id: uuid.UUID
     created_at: datetime
+
+
+class AccountDetailRead(AccountRead):
+    transactions: list[TransactionRead] = []
+    dividends: list[DividendRead] = []
