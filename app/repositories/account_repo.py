@@ -8,19 +8,21 @@ from app.models.account import Account
 from app.schemas.account import AccountCreate
 
 
-async def list_for_user(session: AsyncSession, user_id: uuid.UUID) -> list[Account]:
+async def list_for_user(session: AsyncSession, clerk_id: str) -> list[Account]:
     result = await session.execute(
-        select(Account).where(Account.user_id == user_id).order_by(Account.created_at)
+        select(Account)
+        .where(Account.user_id == clerk_id)
+        .order_by(Account.created_at)
     )
     return list(result.scalars().all())
 
 
 async def create(
     session: AsyncSession,
-    user_id: uuid.UUID,
+    clerk_id: str,
     payload: AccountCreate,
 ) -> Account:
-    account = Account(user_id=user_id, **payload.model_dump())
+    account = Account(user_id=clerk_id, **payload.model_dump())
     session.add(account)
     await session.commit()
     await session.refresh(account)
@@ -29,12 +31,12 @@ async def create(
 
 async def get_for_user(
     session: AsyncSession,
-    user_id: uuid.UUID,
+    clerk_id: str,
     account_id: uuid.UUID,
 ) -> Account | None:
     result = await session.execute(
         select(Account).where(
-            Account.id == account_id, Account.user_id == user_id
+            Account.id == account_id, Account.user_id == clerk_id
         )
     )
     return result.scalar_one_or_none()
@@ -42,12 +44,12 @@ async def get_for_user(
 
 async def get_for_user_with_detail(
     session: AsyncSession,
-    user_id: uuid.UUID,
+    clerk_id: str,
     account_id: uuid.UUID,
 ) -> Account | None:
     result = await session.execute(
         select(Account)
-        .where(Account.id == account_id, Account.user_id == user_id)
+        .where(Account.id == account_id, Account.user_id == clerk_id)
         .options(
             selectinload(Account.transactions),
             selectinload(Account.dividends),

@@ -20,7 +20,7 @@ from app.models.transaction import Transaction, TransactionKind
 
 async def stocks_etf_1(
     db: AsyncSession,
-    user_id: uuid.UUID,
+    clerk_id: str,
     data: list,
     account_id: uuid.UUID,
 ) -> dict:
@@ -99,7 +99,7 @@ async def stocks_etf_1(
 
 async def save_mutual_funds(
     db: AsyncSession,
-    user_id: uuid.UUID,
+    clerk_id: str,
     data: list,
     account_id: uuid.UUID,
 ) -> dict:
@@ -154,7 +154,7 @@ async def save_mutual_funds(
     }
 
 
-async def stocks_etf_2(db: AsyncSession, user_id: uuid.UUID, data: list) -> dict:
+async def stocks_etf_2(db: AsyncSession, clerk_id: str, data: list) -> dict:
     """Holdings de un PDF tipo 2 (estado de posición). Pendiente de cablear:
     requiere decidir si se materializa en `position` o solo se valida contra
     transacciones existentes."""

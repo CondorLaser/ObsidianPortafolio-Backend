@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.auth import get_current_user
 from app.core.db import get_db
 from app.models.asset import AssetKind
-from app.models.user import User
+from app.models.user import Profile
 from app.repositories import asset_repo
 from app.schemas.asset import AssetCreate, AssetRead
 
@@ -19,7 +19,7 @@ async def list_assets(
     search: str | None = Query(default=None, description="ilike sobre symbol o name"),
     limit: int = Query(default=100, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
-    _user: User = Depends(get_current_user),
+    _user: Profile = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     return await asset_repo.list_all(
@@ -36,7 +36,7 @@ async def list_assets(
 @router.get("/{symbol}", response_model=AssetRead)
 async def get_asset(
     symbol: str,
-    _user: User = Depends(get_current_user),
+    _user: Profile = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     asset = await asset_repo.get_by_symbol(db, symbol)
@@ -48,7 +48,7 @@ async def get_asset(
 @router.post("", response_model=AssetRead, status_code=201)
 async def create_asset(
     payload: AssetCreate,
-    _user: User = Depends(get_current_user),
+    _user: Profile = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     existing = await asset_repo.get_by_symbol(db, payload.symbol)

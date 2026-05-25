@@ -15,7 +15,7 @@ import pdfplumber
 
 from app.core.auth import get_current_user
 from app.core.db import get_db
-from app.models.user import User
+from app.models.user import Profile
 from app.repositories import account_repo, pdf_repo
 from scripts.processing_pdf import (
     extract_mutual_funds,
@@ -26,8 +26,8 @@ from scripts.processing_pdf import (
 router = APIRouter(prefix="/pdf", tags=["pdf"])
 
 
-async def _require_account(db: AsyncSession, user: User, account_id: uuid.UUID):
-    account = await account_repo.get_for_user(db, user.id, account_id)
+async def _require_account(db: AsyncSession, user: Profile, account_id: uuid.UUID):
+    account = await account_repo.get_for_user(db, user.clerk_id, account_id)
     if not account:
         raise HTTPException(status_code=403, detail="Cuenta no autorizada")
     return account
@@ -37,7 +37,7 @@ async def _require_account(db: AsyncSession, user: User, account_id: uuid.UUID):
 async def upload_pdf_stocks_etf_1(
     file: UploadFile = File(...),
     account_id: uuid.UUID = Form(...),
-    user: User = Depends(get_current_user),
+    user: Profile = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     await _require_account(db, user, account_id)
@@ -47,14 +47,14 @@ async def upload_pdf_stocks_etf_1(
             data = extract_stocks_etf_1(pdf)
     except Exception:
         raise HTTPException(status_code=400, detail="Error al analizar el archivo, archivo no válido")
-    return await pdf_repo.stocks_etf_1(db, user.id, data, account_id)
+    return await pdf_repo.stocks_etf_1(db, user.clerk_id, data, account_id)
 
 
 @router.post("/extract_mutual_funds")
 async def upload_pdf_mutual_funds(
     file: UploadFile = File(...),
     account_id: uuid.UUID = Form(...),
-    user: User = Depends(get_current_user),
+    user: Profile = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     await _require_account(db, user, account_id)
@@ -64,13 +64,13 @@ async def upload_pdf_mutual_funds(
             data = extract_mutual_funds(pdf)
     except Exception:
         raise HTTPException(status_code=400, detail="Error al analizar el archivo, archivo no válido")
-    return await pdf_repo.save_mutual_funds(db, user.id, data, account_id)
+    return await pdf_repo.save_mutual_funds(db, user.clerk_id, data, account_id)
 
 
 @router.post("/extract_stocks_etf_2")
 async def upload_pdf_stocks_etf_2(
     file: UploadFile = File(...),
-    user: User = Depends(get_current_user),
+    user: Profile = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     content = await file.read()
@@ -79,4 +79,4 @@ async def upload_pdf_stocks_etf_2(
             data = extract_stocks_etf_2(pdf)
     except Exception:
         raise HTTPException(status_code=400, detail="Error al analizar el archivo, archivo no válido")
-    return await pdf_repo.stocks_etf_2(db, user.id, data)
+    return await pdf_repo.stocks_etf_2(db, user.clerk_id, data)

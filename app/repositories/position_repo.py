@@ -1,9 +1,10 @@
-import uuid
-
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 
+# Posiciones derivadas en runtime desde transactions + asset_prices. Existe
+# tabla `positions` materializada (modelo Position) que NO se llena todavía —
+# está reservada para que Eduardo conecte un job que la materialice.
 POSITIONS_SQL = text(
     """
     WITH agg AS (
@@ -21,14 +22,14 @@ POSITIONS_SQL = text(
                      / SUM(CASE WHEN t.kind = 'buy' THEN t.quantity ELSE 0 END)
                 ELSE NULL
             END AS avg_cost
-        FROM "transaction" t
-        JOIN account a ON a.id = t.account_id
-        WHERE a.user_id = :user_id
+        FROM transactions t
+        JOIN accounts a ON a.id = t.account_id
+        WHERE a.user_id = :clerk_id
         GROUP BY t.account_id, t.asset_id
     ),
     last_price AS (
         SELECT DISTINCT ON (asset_id) asset_id, close
-        FROM asset_price
+        FROM asset_prices
         ORDER BY asset_id, date DESC
     )
     SELECT
@@ -47,7 +48,7 @@ POSITIONS_SQL = text(
             ELSE NULL
         END AS unrealized_pnl
     FROM agg
-    JOIN asset ast ON ast.id = agg.asset_id
+    JOIN assets ast ON ast.id = agg.asset_id
     LEFT JOIN last_price lp ON lp.asset_id = agg.asset_id
     WHERE agg.quantity > 0
     ORDER BY ast.symbol;
@@ -55,6 +56,6 @@ POSITIONS_SQL = text(
 )
 
 
-async def list_for_user(session: AsyncSession, user_id: uuid.UUID) -> list[dict]:
-    result = await session.execute(POSITIONS_SQL, {"user_id": user_id})
+async def list_for_user(session: AsyncSession, clerk_id: str) -> list[dict]:
+    result = await session.execute(POSITIONS_SQL, {"clerk_id": clerk_id})
     return [dict(row) for row in result.mappings().all()]
