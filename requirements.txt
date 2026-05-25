@@ -13,3 +13,9 @@ httpx
 
 python-jose
 requests
+
+# Ingesta (PDFs Fintual + sync de precios por GitHub Action)
+pdfplumber
+psycopg2-binary
+pandas
+python-multipart  # requerido por FastAPI cuando hay UploadFile/Form
