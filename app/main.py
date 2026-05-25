@@ -15,8 +15,8 @@ from app.routers import (
     pdf,
     positions,
     prices,
+    profile,
     transactions,
-    users,
     webhooks,
 )
 
@@ -46,16 +46,15 @@ def protected(user=Depends(verify_token)):
     return {"message": "Access granted", "user_id": user["sub"]}
 
 
-API_PREFIX = "/api/v1"
-app.include_router(heartbeat.router, prefix=API_PREFIX)
-app.include_router(accounts.router, prefix=API_PREFIX)
-app.include_router(assets.router, prefix=API_PREFIX)
-app.include_router(dividends.router, prefix=API_PREFIX)
-app.include_router(prices.router, prefix=API_PREFIX)
-app.include_router(transactions.router, prefix=API_PREFIX)
-app.include_router(positions.router, prefix=API_PREFIX)
-app.include_router(pdf.router, prefix=API_PREFIX)
-app.include_router(users.router, prefix=API_PREFIX)
-
-# Webhooks externos: server-to-server, no se montan bajo /api/v1
+# Sin prefijo /api/v1 — el middleware (Zuplo) está configurado para que las
+# rutas estén en root, matcheando exactamente lo que diseñó Eduardo.
+app.include_router(profile.router)
+app.include_router(accounts.router)
+app.include_router(assets.router)
+app.include_router(prices.router)
+app.include_router(transactions.router)
+app.include_router(positions.router)
+app.include_router(dividends.router)
+app.include_router(pdf.router)
+app.include_router(heartbeat.router)
 app.include_router(webhooks.router)

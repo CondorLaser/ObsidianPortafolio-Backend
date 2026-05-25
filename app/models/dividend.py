@@ -18,7 +18,7 @@ class Dividend(Base, TimestampMixin):
     """Dividendo recibido en una cuenta para un asset. Cargado desde PDF (Fintual)
     o registrado manualmente. Inmutable como `Transaction`."""
 
-    __tablename__ = "dividend"
+    __tablename__ = "dividends"
     __table_args__ = (
         Index("ix_dividend_account_date", "account_id", "date"),
     )
@@ -30,12 +30,12 @@ class Dividend(Base, TimestampMixin):
     )
     account_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
-        ForeignKey("account.id", ondelete="CASCADE"),
+        ForeignKey("accounts.id", ondelete="CASCADE"),
         nullable=False,
     )
     asset_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
-        ForeignKey("asset.id", ondelete="RESTRICT"),
+        ForeignKey("assets.id", ondelete="RESTRICT"),
         nullable=False,
     )
     date: Mapped[date_type] = mapped_column(Date, nullable=False)

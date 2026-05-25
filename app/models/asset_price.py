@@ -14,14 +14,14 @@ if TYPE_CHECKING:
 
 
 class AssetPrice(Base):
-    __tablename__ = "asset_price"
+    __tablename__ = "asset_prices"
     __table_args__ = (
         Index("ix_asset_price_asset_date_desc", "asset_id", "date"),
     )
 
     asset_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
-        ForeignKey("asset.id", ondelete="CASCADE"),
+        ForeignKey("assets.id", ondelete="CASCADE"),
         primary_key=True,
     )
     date: Mapped[date_type] = mapped_column(Date, primary_key=True)

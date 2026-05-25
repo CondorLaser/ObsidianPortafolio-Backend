@@ -8,12 +8,12 @@ from app.models.dividend import Dividend
 
 
 async def list_for_user(
-    session: AsyncSession, user_id: uuid.UUID
+    session: AsyncSession, clerk_id: str
 ) -> list[Dividend]:
     stmt = (
         select(Dividend)
         .join(Account, Account.id == Dividend.account_id)
-        .where(Account.user_id == user_id)
+        .where(Account.user_id == clerk_id)
         .order_by(Dividend.date.desc())
     )
     result = await session.execute(stmt)

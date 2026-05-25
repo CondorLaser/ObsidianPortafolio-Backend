@@ -31,7 +31,7 @@ async def main():
         # Two users to validate isolation
         u1 = await user_repo.get_or_create_by_clerk_id(db, "clerk_user_1", "u1@test.io")
         u2 = await user_repo.get_or_create_by_clerk_id(db, "clerk_user_2", "u2@test.io")
-        print(f"users: u1={u1.id} u2={u2.id}")
+        print(f"users: u1={u1.clerk_id} u2={u2.clerk_id}")
 
         # Asset catalog (global)
         spy = await asset_repo.get_by_symbol(db, "SPY")
@@ -51,17 +51,17 @@ async def main():
 
         # Account for u1
         acc1 = await account_repo.create(
-            db, u1.id, AccountCreate(name="Fintual USD", broker="Fintual", currency="USD")
+            db, u1.clerk_id, AccountCreate(name="Fintual USD", broker="Fintual", currency="USD")
         )
         # Account for u2
         acc2 = await account_repo.create(
-            db, u2.id, AccountCreate(name="IBKR", broker="IBKR", currency="USD")
+            db, u2.clerk_id, AccountCreate(name="IBKR", broker="IBKR", currency="USD")
         )
 
         # Buy from u1
         await transaction_repo.create_for_user(
             db,
-            u1.id,
+            u1.clerk_id,
             TransactionCreate(
                 account_id=acc1.id,
                 asset_id=spy.id,
@@ -76,7 +76,7 @@ async def main():
         # Cross-user attempt: u2 tries to add a tx into acc1 (not theirs)
         bad = await transaction_repo.create_for_user(
             db,
-            u2.id,
+            u2.clerk_id,
             TransactionCreate(
                 account_id=acc1.id,
                 asset_id=spy.id,
@@ -90,14 +90,14 @@ async def main():
         print("isolation enforced: u2 cannot post tx on u1 account")
 
         # Listings per user
-        accs_u1 = await account_repo.list_for_user(db, u1.id)
-        accs_u2 = await account_repo.list_for_user(db, u2.id)
+        accs_u1 = await account_repo.list_for_user(db, u1.clerk_id)
+        accs_u2 = await account_repo.list_for_user(db, u2.clerk_id)
         assert {a.id for a in accs_u1} == {acc1.id}
         assert {a.id for a in accs_u2} == {acc2.id}
         print(f"u1 accounts={len(accs_u1)}  u2 accounts={len(accs_u2)}")
 
         # Positions for u1
-        positions = await position_repo.list_for_user(db, u1.id)
+        positions = await position_repo.list_for_user(db, u1.clerk_id)
         for p in positions:
             print(
                 f"position: symbol={p['symbol']} qty={p['quantity']} "
@@ -113,7 +113,7 @@ async def main():
         assert Decimal(p["market_value"]) == Decimal("11132.50000000")
 
         # Positions for u2 must be empty
-        positions_u2 = await position_repo.list_for_user(db, u2.id)
+        positions_u2 = await position_repo.list_for_user(db, u2.clerk_id)
         assert positions_u2 == []
         print("u2 positions empty as expected")
 

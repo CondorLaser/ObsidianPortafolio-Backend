@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
 from app.core.db import get_db
-from app.models.user import User
+from app.models.user import Profile
 from app.repositories import user_repo
 
 security = HTTPBearer()
@@ -72,7 +72,7 @@ def get_token(
 async def get_current_user(
     payload: dict = Depends(verify_token),
     db: AsyncSession = Depends(get_db),
-) -> User:
+) -> Profile:
     clerk_id = payload.get("sub")
     if not clerk_id:
         raise HTTPException(

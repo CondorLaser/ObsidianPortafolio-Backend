@@ -25,7 +25,7 @@ class TransactionKind(str, enum.Enum):
 
 
 class Transaction(Base, TimestampMixin):
-    __tablename__ = "transaction"
+    __tablename__ = "transactions"
     __table_args__ = (
         Index("ix_transaction_account_executed", "account_id", "executed_at"),
     )
@@ -37,12 +37,12 @@ class Transaction(Base, TimestampMixin):
     )
     account_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
-        ForeignKey("account.id", ondelete="CASCADE"),
+        ForeignKey("accounts.id", ondelete="CASCADE"),
         nullable=False,
     )
     asset_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
-        ForeignKey("asset.id", ondelete="RESTRICT"),
+        ForeignKey("assets.id", ondelete="RESTRICT"),
         nullable=False,
     )
     kind: Mapped[TransactionKind] = mapped_column(

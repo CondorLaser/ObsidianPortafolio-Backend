@@ -4,6 +4,7 @@ from datetime import datetime
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.models.asset import AssetKind
+from app.schemas.asset_price import AssetPriceRead
 
 
 class AssetBase(BaseModel):
@@ -22,3 +23,9 @@ class AssetRead(AssetBase):
 
     id: uuid.UUID
     created_at: datetime
+
+
+class AssetDetailRead(AssetRead):
+    """Estilo Eduardo: detalle por id con prices embebidos."""
+
+    prices: list[AssetPriceRead] = []

@@ -9,6 +9,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.models.base import Base, TimestampMixin
 
 if TYPE_CHECKING:
+    from app.models.asset_metrics import AssetDailyMetric, AssetMonthlyMetric
     from app.models.asset_price import AssetPrice
     from app.models.transaction import Transaction
 
@@ -22,7 +23,7 @@ class AssetKind(str, enum.Enum):
 
 
 class Asset(Base, TimestampMixin):
-    __tablename__ = "asset"
+    __tablename__ = "assets"
 
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
@@ -46,4 +47,12 @@ class Asset(Base, TimestampMixin):
     )
     transactions: Mapped[list["Transaction"]] = relationship(
         back_populates="asset"
+    )
+    daily_metrics: Mapped[list["AssetDailyMetric"]] = relationship(
+        back_populates="asset",
+        cascade="all, delete-orphan",
+    )
+    monthly_metrics: Mapped[list["AssetMonthlyMetric"]] = relationship(
+        back_populates="asset",
+        cascade="all, delete-orphan",
     )

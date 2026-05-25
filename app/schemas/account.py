@@ -21,7 +21,7 @@ class AccountRead(AccountBase):
     model_config = ConfigDict(from_attributes=True)
 
     id: uuid.UUID
-    user_id: uuid.UUID
+    user_id: str  # clerk_id (varchar), no UUID interno
     created_at: datetime
 
 

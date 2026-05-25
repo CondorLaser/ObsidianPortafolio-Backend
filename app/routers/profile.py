@@ -3,22 +3,22 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.auth import get_current_user
 from app.core.db import get_db
-from app.models.user import User
+from app.models.user import Profile
 from app.repositories import user_repo
 from app.schemas.user import RiskProfileUpdate, UserRead
 
-router = APIRouter(prefix="/users", tags=["users"])
+router = APIRouter(prefix="/profile", tags=["profile"])
 
 
-@router.get("/me", response_model=UserRead)
-async def me(user: User = Depends(get_current_user)) -> User:
+@router.get("", response_model=UserRead)
+async def get_profile(user: Profile = Depends(get_current_user)) -> Profile:
     return user
 
 
-@router.patch("/me/risk-profile", response_model=UserRead)
+@router.patch("/risk-profile", response_model=UserRead)
 async def update_risk_profile(
     payload: RiskProfileUpdate,
-    user: User = Depends(get_current_user),
+    user: Profile = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-) -> User:
+) -> Profile:
     return await user_repo.update_risk_profile(db, user, payload.risk_profile)
