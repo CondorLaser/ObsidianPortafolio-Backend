@@ -7,15 +7,15 @@ from app.models.user import Profile
 from app.repositories import user_repo
 from app.schemas.user import RiskProfileUpdate, UserRead
 
-router = APIRouter(prefix="/users", tags=["users"])
+router = APIRouter(prefix="/profile", tags=["profile"])
 
 
-@router.get("/me", response_model=UserRead)
-async def me(user: Profile = Depends(get_current_user)) -> Profile:
+@router.get("", response_model=UserRead)
+async def get_profile(user: Profile = Depends(get_current_user)) -> Profile:
     return user
 
 
-@router.patch("/me/risk-profile", response_model=UserRead)
+@router.patch("/risk-profile", response_model=UserRead)
 async def update_risk_profile(
     payload: RiskProfileUpdate,
     user: Profile = Depends(get_current_user),

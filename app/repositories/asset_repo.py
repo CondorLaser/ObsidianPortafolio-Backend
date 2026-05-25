@@ -1,5 +1,8 @@
+import uuid
+
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.models.asset import Asset, AssetKind
 from app.schemas.asset import AssetCreate
@@ -30,6 +33,23 @@ async def list_all(
 
 async def get_by_symbol(session: AsyncSession, symbol: str) -> Asset | None:
     result = await session.execute(select(Asset).where(Asset.symbol == symbol))
+    return result.scalar_one_or_none()
+
+
+async def get_by_id(session: AsyncSession, asset_id: uuid.UUID) -> Asset | None:
+    result = await session.execute(select(Asset).where(Asset.id == asset_id))
+    return result.scalar_one_or_none()
+
+
+async def get_by_id_with_prices(
+    session: AsyncSession, asset_id: uuid.UUID
+) -> Asset | None:
+    """Estilo Eduardo: detalle por id con prices embebidos (ordenados desc por fecha)."""
+    result = await session.execute(
+        select(Asset)
+        .where(Asset.id == asset_id)
+        .options(selectinload(Asset.prices))
+    )
     return result.scalar_one_or_none()
 
 

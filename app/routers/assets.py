@@ -1,3 +1,5 @@
+import uuid
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -6,7 +8,7 @@ from app.core.db import get_db
 from app.models.asset import AssetKind
 from app.models.user import Profile
 from app.repositories import asset_repo
-from app.schemas.asset import AssetCreate, AssetRead
+from app.schemas.asset import AssetCreate, AssetDetailRead, AssetRead
 
 router = APIRouter(prefix="/assets", tags=["assets"])
 
@@ -33,13 +35,14 @@ async def list_assets(
     )
 
 
-@router.get("/{symbol}", response_model=AssetRead)
+@router.get("/{asset_id}", response_model=AssetDetailRead)
 async def get_asset(
-    symbol: str,
+    asset_id: uuid.UUID,
     _user: Profile = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    asset = await asset_repo.get_by_symbol(db, symbol)
+    """Estilo Eduardo: detalle por UUID con prices embebidos."""
+    asset = await asset_repo.get_by_id_with_prices(db, asset_id)
     if asset is None:
         raise HTTPException(status_code=404, detail="Asset not found")
     return asset
