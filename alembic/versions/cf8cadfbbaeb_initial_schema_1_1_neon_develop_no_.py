@@ -1,8 +1,8 @@
-"""initial schema neon develop (profiles + accounts plural + metrics)
+"""initial schema 1:1 neon develop (no created_at en dividends, no unique en symbol)
 
-Revision ID: 68f996bfcf8b
+Revision ID: cf8cadfbbaeb
 Revises: 
-Create Date: 2026-05-25 13:08:53.617841
+Create Date: 2026-05-25 13:33:12.355699
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision: str = '68f996bfcf8b'
+revision: str = 'cf8cadfbbaeb'
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -30,7 +30,7 @@ def upgrade() -> None:
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.PrimaryKeyConstraint('id')
     )
-    op.create_index(op.f('ix_assets_symbol'), 'assets', ['symbol'], unique=True)
+    op.create_index(op.f('ix_assets_symbol'), 'assets', ['symbol'], unique=False)
     op.create_table('profiles',
     sa.Column('clerk_id', sa.String(), nullable=False),
     sa.Column('email', sa.String(), nullable=True),
@@ -135,7 +135,6 @@ def upgrade() -> None:
     sa.Column('gross_amount', sa.Numeric(precision=18, scale=2), nullable=True),
     sa.Column('tax_amount', sa.Numeric(precision=18, scale=2), nullable=True),
     sa.Column('net_amount', sa.Numeric(precision=18, scale=2), nullable=True),
-    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.ForeignKeyConstraint(['account_id'], ['accounts.id'], ondelete='CASCADE'),
     sa.ForeignKeyConstraint(['asset_id'], ['assets.id'], ondelete='RESTRICT'),
     sa.PrimaryKeyConstraint('id')

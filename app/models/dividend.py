@@ -7,16 +7,16 @@ from sqlalchemy import Date, ForeignKey, Index, Numeric
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.models.base import Base, TimestampMixin
+from app.models.base import Base
 
 if TYPE_CHECKING:
     from app.models.account import Account
     from app.models.asset import Asset
 
 
-class Dividend(Base, TimestampMixin):
+class Dividend(Base):
     """Dividendo recibido en una cuenta para un asset. Cargado desde PDF (Fintual)
-    o registrado manualmente. Inmutable como `Transaction`."""
+    o registrado manualmente. Sin TimestampMixin (Neon develop no tiene `created_at`)."""
 
     __tablename__ = "dividends"
     __table_args__ = (

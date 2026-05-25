@@ -32,7 +32,21 @@ async def list_all(
 
 
 async def get_by_symbol(session: AsyncSession, symbol: str) -> Asset | None:
-    result = await session.execute(select(Asset).where(Asset.symbol == symbol))
+    """Devuelve el primer asset con ese symbol. Symbols pueden repetirse para
+    asset_kind distintos (ej. "A" stock vs "A" fund). Para disambiguar usar
+    `get_by_symbol_and_kind`."""
+    result = await session.execute(
+        select(Asset).where(Asset.symbol == symbol).limit(1)
+    )
+    return result.scalar_one_or_none()
+
+
+async def get_by_symbol_and_kind(
+    session: AsyncSession, symbol: str, kind: AssetKind
+) -> Asset | None:
+    result = await session.execute(
+        select(Asset).where(Asset.symbol == symbol, Asset.kind == kind)
+    )
     return result.scalar_one_or_none()
 
 

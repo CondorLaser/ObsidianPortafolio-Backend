@@ -30,9 +30,10 @@ class Asset(Base, TimestampMixin):
         primary_key=True,
         default=uuid.uuid4,
     )
-    symbol: Mapped[str] = mapped_column(
-        String, unique=True, nullable=False, index=True
-    )
+    # NO unique: Neon develop permite mismo symbol para asset_kind distintos
+    # (ej. "A" es tanto stock Agilent como fondo Fintual). Disambiguación en
+    # consultas se hace por (symbol, kind).
+    symbol: Mapped[str] = mapped_column(String, nullable=False, index=True)
     name: Mapped[str] = mapped_column(String, nullable=False)
     kind: Mapped[AssetKind] = mapped_column(
         Enum(AssetKind, name="asset_kind"), nullable=False
