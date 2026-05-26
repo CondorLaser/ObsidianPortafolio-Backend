@@ -32,8 +32,18 @@ from scripts.processing_pdf import (
 )
 
 TEST_PREFIX = "_pdf_e2e_"
-PDF_STOCKS = Path("/Users/mtombolini/Desktop/cert_stocks.pdf")
-PDF_FUNDS = Path("/Users/mtombolini/Desktop/cert_funds.pdf")
+# Buscar en varias rutas: docs/pdfs (repo) o Desktop (fallback manual)
+_REPO_ROOT = Path(__file__).parent.parent
+_CANDIDATES_STOCKS = [
+    _REPO_ROOT / "docs" / "pdfs" / "certificado.pdf",
+    Path("/Users/mtombolini/Desktop/cert_stocks.pdf"),
+]
+_CANDIDATES_FUNDS = [
+    _REPO_ROOT / "docs" / "pdfs" / "certificado_de_transacciones.pdf",
+    Path("/Users/mtombolini/Desktop/cert_funds.pdf"),
+]
+PDF_STOCKS = next((p for p in _CANDIDATES_STOCKS if p.exists()), _CANDIDATES_STOCKS[0])
+PDF_FUNDS = next((p for p in _CANDIDATES_FUNDS if p.exists()), _CANDIDATES_FUNDS[0])
 
 
 async def cleanup():

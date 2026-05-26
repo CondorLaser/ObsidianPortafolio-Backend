@@ -59,10 +59,29 @@ RESULTADO (local|neon): 26 OK, 0 FAIL
 - Asset detail con prices ORDER BY date DESC
 - Account rename con ownership check
 
-**Fase 5** — `integration_test.py:test_ingestion_*`
+**Fase 5** — `integration_test.py:test_ingestion_*` + scripts dedicados
 - `pdf_repo.stocks_etf_1`: filas sintéticas → INSERT en transactions+dividends, kind buy/sell correcto
 - `pdf_repo.save_mutual_funds`: filas sintéticas Fintual → INSERT en transactions
 - `sync_stock_prices.fetch_prices` contra TwelveData (1 símbolo, opcional con API key)
+- **`scripts/test_real_fintual_data.py`** — usa rows REALES extraídas manualmente de los certificados del usuario (82 tx). Bypassea pdfplumber pero valida toda la cadena de persistencia con data real.
+- **`scripts/test_pdf_e2e.py`** — **END-TO-END**: PDF binario → pdfplumber → processing_pdf.extract_* → pdf_repo → DB. Requiere PDFs en `docs/pdfs/` (gitignored, data personal). Resultado real verificado: 36 compraventas + 71 dividendos del cert_stocks + 69 movimientos del cert_funds = **176 tx persistidas sin errores**.
+
+### Tests E2E PDF — guía rápida
+
+PDFs personales NO se commitean (data financiera). Guardar manualmente en:
+```
+ObsidianPortafolio-Backend/docs/pdfs/certificado.pdf                    # stocks/ETFs + dividendos
+ObsidianPortafolio-Backend/docs/pdfs/certificado_de_transacciones.pdf   # fondos mutuos
+```
+
+Correr:
+```bash
+docker compose up -d        # Postgres local con schema migrado
+DATABASE_URL_DEV='postgresql+asyncpg://orion:orion@localhost:5433/orion_dev' \
+  ./venv/bin/python -m scripts.test_pdf_e2e
+```
+
+⚠️ Se corre con **venv local** (no `docker compose exec`) porque `docs/` no está montado al contenedor por seguridad. El test se conecta a la DB del Docker vía `localhost:5433`.
 
 ### Limpieza automática
 
