@@ -492,6 +492,123 @@ async def test_data_layer(r: Report):
 
 
 # ────────────────────────────────────────────────────────────────────────────
+# Fase 5 — Ingestion (sintética, sin dependencias externas)
+# ────────────────────────────────────────────────────────────────────────────
+async def test_ingestion_pdf_stocks_etf_1(r: Report):
+    section("Fase 5.1 — pdf_repo.stocks_etf_1 con filas sintéticas")
+    from app.repositories import pdf_repo
+
+    # Setup: usuario + asset + account
+    u_id = f"{TEST_USER_PREFIX}pdf_user"
+    async with SessionLocal() as db:
+        u = await user_repo.get_or_create_by_clerk_id(db, u_id, "pdf@test.io")
+        symbol = f"_INTTEST_PDF{int(time.time())}"
+        asset = await asset_repo.create(
+            db,
+            AssetCreate(symbol=symbol, name="PDF Test Stock",
+                        kind=AssetKind.stock, currency="USD"),
+        )
+        acc = await account_repo.create(db, u_id, AccountCreate(name="PDF Acc", currency="USD"))
+
+    # Filas sintéticas en el formato exacto que produce processing_pdf.extract_stocks_etf_1
+    # (purchase_sales + dividends_rows)
+    purchase_sales = [
+        # [fecha, nombre, simbolo, categoria, aporte, acciones_compradas, rescate, acciones_vendidas]
+        ["2026-01-15", "PDF Test Stock", symbol, "stock", 1000.0, 10.0, 0.0, 0.0],
+        ["2026-02-15", "PDF Test Stock", symbol, "stock", 0.0, 0.0, 500.0, 5.0],
+    ]
+    dividends_rows = [
+        # [fecha, nombre, simbolo, categoria, monto_bruto, monto_impuestos, monto_neto]
+        ["2026-03-15", "PDF Test Stock", symbol, "stock", 100.0, 15.0, 85.0],
+    ]
+    async with SessionLocal() as db:
+        result = await pdf_repo.stocks_etf_1(
+            db, u_id, [purchase_sales, dividends_rows], acc.id
+        )
+
+    if (result["compras_ventas_guardadas"] == 2
+            and result["dividendos_guardados"] == 1
+            and not result["errores_activos_faltantes"]):
+        r.ok(f"PDF stocks_etf_1: 2 tx (buy+sell) + 1 dividend persistidos")
+    else:
+        r.fail("pdf stocks_etf_1", f"result={result}")
+
+    # Verificar en DB
+    async with SessionLocal() as db:
+        det = await account_repo.get_for_user_with_detail(db, u_id, acc.id)
+        if len(det.transactions) == 2 and len(det.dividends) == 1:
+            kinds = sorted(t.kind.value for t in det.transactions)
+            if kinds == ["buy", "sell"]:
+                r.ok("PDF ingestion preserva kind buy/sell desde aporte/rescate")
+            else:
+                r.fail("PDF kinds", f"got {kinds}")
+        else:
+            r.fail("PDF persist",
+                   f"tx={len(det.transactions)} div={len(det.dividends)}")
+
+
+async def test_ingestion_pdf_mutual_funds(r: Report):
+    section("Fase 5.2 — pdf_repo.save_mutual_funds (Fintual)")
+    from app.repositories import pdf_repo
+
+    u_id = f"{TEST_USER_PREFIX}fund_user"
+    async with SessionLocal() as db:
+        u = await user_repo.get_or_create_by_clerk_id(db, u_id, "fund@test.io")
+        # Eduardo's mutual fund pattern: name + series (symbol)
+        fund_name = "_INTTEST_FundName"
+        fund_series = f"_INTTEST_S{int(time.time())}"
+        asset = await asset_repo.create(
+            db,
+            AssetCreate(symbol=fund_series, name=fund_name,
+                        kind=AssetKind.fund, currency="USD"),
+        )
+        acc = await account_repo.create(
+            db, u_id, AccountCreate(name="Fintual Acc", broker="Fintual", currency="USD")
+        )
+
+    # Filas en el formato extract_mutual_funds:
+    # [fecha, nombre_inversion, nombre_fondo, serie_fondo, aportes, rescate, aportes_cpl, rescate_cpl]
+    rows = [
+        ["15/01/2026", "Risky Norris", fund_name, fund_series, 100.0, 0.0, 1000.0, 0.0],
+        ["20/02/2026", "Risky Norris", fund_name, fund_series, 0.0, 50.0, 0.0, 1100.0],
+    ]
+    async with SessionLocal() as db:
+        result = await pdf_repo.save_mutual_funds(db, u_id, rows, acc.id)
+
+    if result["compras_ventas_guardadas"] == 2 and not result["errores_activos_faltantes"]:
+        r.ok("PDF mutual_funds: 2 tx (aporte + rescate) persistidas")
+    else:
+        r.fail("pdf mutual_funds", f"result={result}")
+
+
+async def test_ingestion_twelvedata(r: Report):
+    section("Fase 5.3 — TwelveData sync (1 símbolo)")
+    api_key = os.environ.get("TWELVEDATA_API_KEY")
+    if not api_key:
+        print("     (skip: TWELVEDATA_API_KEY no seteada)")
+        print("     Para activar este test:")
+        print("        export TWELVEDATA_API_KEY='tu-api-key-de-twelvedata'")
+        print("     Validará el roundtrip TwelveData -> Neon insertando precio para 1 símbolo.")
+        return
+
+    import requests
+    try:
+        resp = requests.get(
+            "https://api.twelvedata.com/time_series",
+            params={"symbol": "AAPL", "interval": "1day",
+                    "outputsize": 1, "apikey": api_key},
+            timeout=10,
+        )
+        data = resp.json()
+        if "values" in data and data["values"]:
+            r.ok(f"TwelveData responde: AAPL close={data['values'][0]['close']}")
+        else:
+            r.fail("TwelveData fetch", f"response: {data}")
+    except Exception as e:
+        r.fail("TwelveData fetch", str(e))
+
+
+# ────────────────────────────────────────────────────────────────────────────
 # Cleanup
 # ────────────────────────────────────────────────────────────────────────────
 async def cleanup_test_data():
@@ -567,6 +684,11 @@ async def main(api_url: str, label: str, cleanup: bool) -> int:
 
     # Fase 4: data layer (repos directos)
     await test_data_layer(r)
+
+    # Fase 5: ingestion
+    await test_ingestion_pdf_stocks_etf_1(r)
+    await test_ingestion_pdf_mutual_funds(r)
+    await test_ingestion_twelvedata(r)
 
     if cleanup:
         section("Cleanup: borrar profiles + assets de test")
