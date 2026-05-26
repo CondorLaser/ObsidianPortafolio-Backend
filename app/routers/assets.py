@@ -15,7 +15,7 @@ router = APIRouter(prefix="/assets", tags=["assets"])
 
 @router.get("", response_model=list[AssetRead])
 async def list_assets(
-    symbol: str | None = Query(default=None, description="filtro ilike sobre symbol"),
+    symbol: str | None = Query(default=None, description="exact match (Eduardo)"),
     kind: AssetKind | None = Query(default=None),
     currency: str | None = Query(default=None, min_length=3, max_length=3),
     search: str | None = Query(default=None, description="ilike sobre symbol o name"),
@@ -24,9 +24,11 @@ async def list_assets(
     _user: Profile = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    """1:1 con contrato Eduardo: `symbol` es exact match (no ilike).
+    Para búsqueda fuzzy usar `search` (ilike sobre symbol o name)."""
     return await asset_repo.list_all(
         db,
-        symbol_like=symbol,
+        symbol_exact=symbol,
         kind=kind,
         currency=currency,
         search=search,

@@ -10,12 +10,11 @@ class RiskProfileUpdate(BaseModel):
 
 
 class UserRead(BaseModel):
-    """Profile expuesto vía API. No hay `id` UUID — el identificador estable
-    es `clerk_id` directamente (decisión arquitectónica del schema)."""
+    """1:1 con ProfileResponse de Eduardo (mismo orden de campos)."""
 
     model_config = ConfigDict(from_attributes=True)
 
     clerk_id: str
     email: str | None
-    risk_profile: RiskProfile | None
     created_at: datetime
+    risk_profile: RiskProfile | None

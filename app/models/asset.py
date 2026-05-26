@@ -45,6 +45,7 @@ class Asset(Base, TimestampMixin):
     prices: Mapped[list["AssetPrice"]] = relationship(
         back_populates="asset",
         cascade="all, delete-orphan",
+        order_by="AssetPrice.date.desc()",  # 1:1 con contrato Eduardo
     )
     transactions: Mapped[list["Transaction"]] = relationship(
         back_populates="asset"
