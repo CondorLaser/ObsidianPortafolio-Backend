@@ -61,4 +61,4 @@ async def clerk_webhook(
         await user_repo.delete_by_clerk_id(db, clerk_id)
     # otros tipos: ignorados con 200 (Clerk reintenta si != 2xx)
 
-    return {"status": "ok", "event": event_type}
+    return {"status": "ok"}  # response 1:1 con contrato Eduardo

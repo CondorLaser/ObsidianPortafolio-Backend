@@ -8,6 +8,8 @@ from app.schemas.asset_price import AssetPriceRead
 
 
 class AssetBase(BaseModel):
+    """Para POST: schema mínimo de creación."""
+
     symbol: str
     name: str
     kind: AssetKind
@@ -18,14 +20,20 @@ class AssetCreate(AssetBase):
     pass
 
 
-class AssetRead(AssetBase):
+class AssetRead(BaseModel):
+    """1:1 con AssetsResponse de Eduardo (mismo orden de campos)."""
+
     model_config = ConfigDict(from_attributes=True)
 
     id: uuid.UUID
+    symbol: str
+    name: str
+    kind: AssetKind
+    currency: str
     created_at: datetime
 
 
 class AssetDetailRead(AssetRead):
-    """Estilo Eduardo: detalle por id con prices embebidos."""
+    """1:1 con AssetDetailResponse de Eduardo: metadata + prices ordenados DESC by date."""
 
     prices: list[AssetPriceRead] = []
