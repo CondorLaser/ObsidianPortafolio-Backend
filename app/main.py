@@ -12,11 +12,14 @@ from app.routers import (
     assets,
     dividends,
     heartbeat,
+    onboarding,
     pdf,
     positions,
+    preferences,
     prices,
     profile,
     transactions,
+    user,
     webhooks,
 )
 
@@ -49,6 +52,9 @@ def protected(user=Depends(verify_token)):
 # Sin prefijo /api/v1 — el middleware (Zuplo) está configurado para que las
 # rutas estén en root, matcheando exactamente lo que diseñó Eduardo.
 app.include_router(profile.router)
+app.include_router(user.router)
+app.include_router(preferences.router)
+app.include_router(onboarding.router)
 app.include_router(accounts.router)
 app.include_router(assets.router)
 app.include_router(prices.router)
