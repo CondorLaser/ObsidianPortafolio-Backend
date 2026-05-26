@@ -60,3 +60,19 @@ async def get_for_user_with_detail(
         )
     )
     return result.scalar_one_or_none()
+
+
+async def rename(
+    session: AsyncSession,
+    clerk_id: str,
+    account_id: uuid.UUID,
+    new_name: str,
+) -> Account | None:
+    """Renombra una cuenta si pertenece al usuario. Devuelve None si no es del user."""
+    account = await get_for_user(session, clerk_id, account_id)
+    if account is None:
+        return None
+    account.name = new_name
+    await session.commit()
+    await session.refresh(account)
+    return account
