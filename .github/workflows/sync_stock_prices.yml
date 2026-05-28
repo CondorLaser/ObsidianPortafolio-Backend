@@ -3,8 +3,8 @@ name: Sync Stock Prices
 
 on:
   push:
-    branches:
-      - feat/ingesta_fintual #solo para testeo
+  #  branches:
+  #    - feat/ingesta_fintual #solo para testeo
   schedule:
     - cron: "0 5 * * *"  # todos los días en la noche
   workflow_dispatch:      

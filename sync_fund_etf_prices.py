@@ -119,10 +119,19 @@ for i in usefull:
         )
     )
 
+query_assets = """ 
+INSERT INTO assets (symbol, name, kind, currency)
+VALUES %s
+ON CONFLICT (symbol) DO NOTHING
+""" # subir nuevo asset si no está arriba
+execute_values(cur, query_assets, data)
+conn.commit()
+
 last_date = get_last_stored_date(cur) #fecha de última actualización
 if last_date:
     last_date = (last_date + timedelta(days=1)).isoformat() #partimos desde el dia siguiente al último
-
+cur.close()
+conn.close()
 
 all_prices = {}
 
@@ -139,6 +148,9 @@ for i, asset in enumerate(usefull):
 
 
 #TIRAR A LA BDD
+
+conn = psycopg2.connect(os.environ["DATABASE_URL"])
+cur = conn.cursor()
 
 cur.execute("SELECT id, symbol, currency FROM assets")
 rows = cur.fetchall()
