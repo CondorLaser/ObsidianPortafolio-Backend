@@ -2,7 +2,7 @@ name: Sync Stock Prices
 
 
 on:
-  push:
+  #push:
   #  branches:
   #    - feat/ingesta_fintual #solo para testeo
   schedule:
