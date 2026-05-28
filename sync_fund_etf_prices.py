@@ -122,7 +122,7 @@ for i in usefull:
 query_assets = """ 
 INSERT INTO assets (symbol, name, kind, currency)
 VALUES %s
-ON CONFLICT (symbol) DO NOTHING
+ON CONFLICT (symbol, name) DO NOTHING
 """ # subir nuevo asset si no está arriba
 execute_values(cur, query_assets, data)
 conn.commit()
