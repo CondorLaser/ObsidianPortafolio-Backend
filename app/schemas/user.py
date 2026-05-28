@@ -9,7 +9,7 @@ from app.models.transaction import TransactionKind
 
 class RiskProfileUpdate(BaseModel):
     risk_profile: Literal[
-        "conservador",
-        "moderado",
-        "agresivo",
+        "conservative",
+        "moderate",
+        "agressive",
     ]

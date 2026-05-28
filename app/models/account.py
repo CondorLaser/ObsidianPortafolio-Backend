@@ -22,7 +22,7 @@ class Account(Base, TimestampMixin):
     )
     user_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
-        ForeignKey("user.id", ondelete="CASCADE"),
+        ForeignKey("profiles.clerk_id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )

@@ -17,6 +17,6 @@ async def update_risk_profile(
 ):
     return await user_repo.update_risk_profile(
         db,
-        user.id,
+        user.clerk_id,
         payload.risk_profile,
     )
