@@ -1,6 +1,7 @@
 import statistics
 from math import sqrt
 from collections import defaultdict
+import os
 import psycopg2
 from psycopg2.extras import execute_values
 import requests
