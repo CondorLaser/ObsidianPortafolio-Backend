@@ -15,4 +15,3 @@ class DividendRead(BaseModel):
     gross_amount: Decimal | None
     tax_amount: Decimal | None
     net_amount: Decimal | None
-    created_at: datetime
