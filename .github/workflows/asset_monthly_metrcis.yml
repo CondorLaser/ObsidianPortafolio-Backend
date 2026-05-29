@@ -26,4 +26,4 @@ jobs:
       - name: Correr script
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
-        run: scripts_ghactions/assets_monthly_metrics.py
+        run: python scripts_ghactions/assets_monthly_metrics.py
