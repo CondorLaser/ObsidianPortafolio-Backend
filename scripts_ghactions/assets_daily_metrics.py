@@ -1,6 +1,8 @@
 import statistics
 from math import sqrt
 from collections import defaultdict
+from psycopg2.extras import execute_values
+import requests
 
 
 #ACA HACEMOS EL UPDATE DE LAS MÉTRICAS DIARIAS
@@ -15,7 +17,9 @@ def close_bdd(conn, cur):
     conn.close()
 
 
+
 # ABSOLUTE RETURN
+print("Comenzamos absolute return")
 conn, cur = connection_bdd()
 # Primer precio de cada asset
 cur.execute("""
@@ -41,6 +45,7 @@ for asset_id, (last_close, last_date) in last_prices.items():
     absolute_return = (last_close - first_close) / first_close * 100
     info_absolute_returns.append((asset_id, last_date, float(absolute_return)))
 
+print(len(info_absolute_returns))
 execute_values(
     cur,
     """
@@ -94,6 +99,7 @@ for asset_id, returns in daily_return_dict.items():
 
 conn, cur = connection_bdd()
 
+print(len(info_volatility))
 execute_values(
     cur,
     """
@@ -140,6 +146,7 @@ for asset_id, asset_tuple in all_prices_by_asset.items(): #itero sobre los items
             max_drawdown = dd
     max_drawdowns.append((asset_id, asset_tuple[-1][0] , max_drawdown))
 
+print(len(max_drawdowns))
 execute_values(
     cur,
     """
