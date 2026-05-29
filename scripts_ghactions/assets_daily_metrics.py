@@ -7,7 +7,7 @@ from psycopg2.extras import execute_values
 import requests
 
 
-#ACA HACEMOS EL UPDATE DE LAS MÉTRICAS DIARIAS
+#ACA HACEMOS EL UPDATE DE LAS MÉTRICAS DIARIAS 
 
 def connection_bdd():
     conn = psycopg2.connect(os.environ["DATABASE_URL"])
