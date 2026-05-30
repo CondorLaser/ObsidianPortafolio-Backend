@@ -39,10 +39,20 @@ def get_conceptual_assets():
     return assets
 
 
-def get_real_assets_for_conceptual(conceptual_asset_id):
-    resp = requests.get(f"{BASE_URL}/conceptual_assets/{conceptual_asset_id}/real_assets", timeout=30)
-    resp.raise_for_status()
-    return resp.json().get("data", [])
+def get_real_assets_for_conceptual(conceptual_asset_id, retries=5):
+    for attempt in range(retries):
+        try:
+            resp = requests.get(f"{BASE_URL}/conceptual_assets/{conceptual_asset_id}/real_assets", timeout=30)
+            resp.raise_for_status()
+            return resp.json().get("data", [])
+        except Exception as e:
+            if "429" in str(e) and attempt < retries - 1:
+                wait = 2 ** attempt * 20
+                print(f"Rate limit, esperando {wait}s...")
+                time.sleep(wait)
+            else:
+                print(f"Error en {conceptual_asset_id}: {e}")
+                return []
 
 
 def get_price_history(real_asset_id, from_date=None, to_date=None):
@@ -84,7 +94,7 @@ def get_price_history_safe(real_asset_id, from_date=None, to_date=None, retries=
                 return []
 
 
-# ── 1. Armar data de assets y precios (sin BDD) ───────────────────────────────
+# ── 1. Armar data de assets (sin BDD) ────────────────────────────────────────
 assets = get_conceptual_assets()
 usefull = []
 
@@ -93,7 +103,7 @@ for a in assets:
         usefull.append(a)
 
 data = []
-real_asset_map = {}  # ra_symbol → fintual real_asset id
+real_asset_map = {}  # conceptual_id → [(serie_symbol, ra_id), ...]
 
 for asset in usefull:
     kind = "fund" if asset["kind"] == "mutual_fund" else "etf"
@@ -102,24 +112,21 @@ for asset in usefull:
         real_assets = get_real_assets_for_conceptual(asset["id"])
         for ra in real_assets:
             ra_attrs = ra.get("attributes", {})
-            ra_symbol = ra_attrs.get("symbol")
-            ra_serie  = ra_attrs.get("serie")
+            ra_serie  = ra_attrs.get("serie")   # "A", "APV", etc.
             data.append((
-                ra_symbol,
-                asset["name"],
+                ra_serie,        # symbol = serie, coincide con el PDF
+                asset["name"],   # "Risky Norris"
                 kind,
                 asset["currency"],
-                ra_serie,
             ))
-            real_asset_map[ra_symbol] = ra["id"]
-        time.sleep(0.5)
+            real_asset_map.setdefault(asset["id"], []).append((ra_serie, ra["id"]))
+        time.sleep(1)
     else:
         data.append((
             asset["symbol"],
             asset["name"],
             kind,
             asset["currency"],
-            None,
         ))
 
 # ── 2. Insertar assets en BDD ─────────────────────────────────────────────────
@@ -127,7 +134,7 @@ conn = psycopg2.connect(os.environ["DATABASE_URL"])
 cur = conn.cursor()
 
 query_assets = """
-INSERT INTO assets (symbol, name, kind, currency, serie)
+INSERT INTO assets (symbol, name, kind, currency)
 VALUES %s
 ON CONFLICT (symbol, name) DO NOTHING
 """
@@ -146,15 +153,14 @@ all_prices = {}
 
 for i, asset in enumerate(usefull):
     if asset["kind"] == "mutual_fund":
-        for ra_symbol, ra_id in real_asset_map.items():
-            if ra_symbol.startswith(asset["symbol"]):
-                prices = get_price_history_safe(ra_id, last_date)
-                all_prices[ra_symbol] = prices
+        for ra_serie, ra_id in real_asset_map.get(asset["id"], []):
+            prices = get_price_history_safe(ra_id, last_date)
+            all_prices[(ra_serie, asset["name"])] = prices
     else:
         real_assets = get_real_assets_for_conceptual(asset["id"])
         if real_assets:
             prices = get_price_history_safe(real_assets[0]["id"], last_date)
-            all_prices[asset["symbol"]] = prices
+            all_prices[(asset["symbol"], asset["name"])] = prices
 
     time.sleep(1)
 
@@ -165,14 +171,14 @@ for i, asset in enumerate(usefull):
 conn = psycopg2.connect(os.environ["DATABASE_URL"])
 cur = conn.cursor()
 
-cur.execute("SELECT id, symbol, currency FROM assets")
+cur.execute("SELECT id, symbol, name, currency FROM assets")
 rows = cur.fetchall()
-symbol_to_id       = {row[1]: row[0] for row in rows}
-symbol_to_currency = {row[1]: row[2] for row in rows}
+symbol_name_to_id       = {(row[1], row[2]): row[0] for row in rows}
+symbol_name_to_currency = {(row[1], row[2]): row[3] for row in rows}
 
 price_data = []
-for symbol, prices in all_prices.items():
-    asset_id = symbol_to_id.get(symbol)
+for (symbol, name), prices in all_prices.items():
+    asset_id = symbol_name_to_id.get((symbol, name))
     if not asset_id:
         continue
     for p in prices:
@@ -181,7 +187,7 @@ for symbol, prices in all_prices.items():
             p["date"],
             p["price"],
             "fintual",
-            symbol_to_currency.get(symbol)
+            symbol_name_to_currency.get((symbol, name))
         ))
 
 query = """
@@ -194,3 +200,5 @@ execute_values(cur, query, price_data)
 conn.commit()
 cur.close()
 conn.close()
+
+print(f"Listo — {len(price_data)} precios insertados para {len(all_prices)} activos.")
