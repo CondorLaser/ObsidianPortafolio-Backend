@@ -30,7 +30,7 @@ services:
       APP_ENV: dev
       # Override directo: dentro del compose net, db es el hostname del servicio.
       # Esto pisa DATABASE_URL_DEV del .env (que apunta a localhost:5433).
-      DATABASE_URL: postgresql+asyncpg://orion:orion@db:5432/orion_dev
+      #DATABASE_URL: postgresql+asyncpg://orion:orion@db:5432/orion_dev
       CLERK_ISSUER: ${CLERK_ISSUER:-}
       CLERK_WEBHOOK_SECRET: ${CLERK_WEBHOOK_SECRET:-}
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:3000}

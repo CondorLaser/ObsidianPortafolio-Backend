@@ -84,8 +84,7 @@ def get_price_history_safe(real_asset_id, from_date=None, to_date=None, retries=
                 return []
 
 
-conn = psycopg2.connect(os.environ["DATABASE_URL"])
-cur = conn.cursor()
+# ── 1. Armar data de assets y precios (sin BDD) ───────────────────────────────
 assets = get_conceptual_assets()
 usefull = []
 
@@ -93,11 +92,8 @@ for a in assets:
     if a["kind"] == "etf" or a["kind"] == "mutual_fund":
         usefull.append(a)
 
-# Para fondos mutuos insertar cada real_asset (serie) como fila separada
-# Para ETFs insertar el conceptual_asset como antes
 data = []
-# real_asset_symbol → real_asset_id de Fintual (para buscar precios después)
-real_asset_map = {}  # symbol_serie → fintual_real_asset_id
+real_asset_map = {}  # ra_symbol → fintual real_asset id
 
 for asset in usefull:
     kind = "fund" if asset["kind"] == "mutual_fund" else "etf"
@@ -116,15 +112,19 @@ for asset in usefull:
                 ra_serie,
             ))
             real_asset_map[ra_symbol] = ra["id"]
-        time.sleep(0.5)  # evitar 429 al buscar real_assets
+        time.sleep(0.5)
     else:
         data.append((
             asset["symbol"],
             asset["name"],
             kind,
             asset["currency"],
-            None,  # serie = None para ETFs
+            None,
         ))
+
+# ── 2. Insertar assets en BDD ─────────────────────────────────────────────────
+conn = psycopg2.connect(os.environ["DATABASE_URL"])
+cur = conn.cursor()
 
 query_assets = """
 INSERT INTO assets (symbol, name, kind, currency, serie)
@@ -137,18 +137,17 @@ conn.commit()
 last_date = get_last_stored_date(cur)
 if last_date:
     last_date = (last_date + timedelta(days=1)).isoformat()
+
 cur.close()
 conn.close()
 
-# Para fondos mutuos usamos real_asset_map (ya tenemos los real_asset ids)
-# Para ETFs buscamos los real_assets igual que antes
+# ── 3. Bajar precios de Fintual ───────────────────────────────────────────────
 all_prices = {}
 
 for i, asset in enumerate(usefull):
     if asset["kind"] == "mutual_fund":
-        # ya tenemos los real_asset ids en real_asset_map
         for ra_symbol, ra_id in real_asset_map.items():
-            if ra_symbol.startswith(asset["symbol"]):  # filtra los de este conceptual
+            if ra_symbol.startswith(asset["symbol"]):
                 prices = get_price_history_safe(ra_id, last_date)
                 all_prices[ra_symbol] = prices
     else:
@@ -162,8 +161,7 @@ for i, asset in enumerate(usefull):
     if i % 50 == 0:
         print(f"{i}/{len(usefull)} procesados...")
 
-
-# TIRAR A LA BDD
+# ── 4. Insertar precios en BDD ────────────────────────────────────────────────
 conn = psycopg2.connect(os.environ["DATABASE_URL"])
 cur = conn.cursor()
 
