@@ -8,7 +8,7 @@ from psycopg2.extras import execute_values
 
 BASE_URL = "https://fintual.cl/api"
 
-def get_last_stored_date(cur): ### Encontrams la fecha guardada más reciente
+def get_last_stored_date(cur):
    cur.execute(
       """
       SELECT MAX(ap.date)
@@ -20,19 +20,15 @@ def get_last_stored_date(cur): ### Encontrams la fecha guardada más reciente
    return cur.fetchone()[0]
 
 
-
 def get_conceptual_assets():
-    """
-    GET /api/conceptual_assets
-    Retorna lista de dicts con: id, name, symbol, kind, currency, run, provider
-    """
     resp = requests.get(f"{BASE_URL}/conceptual_assets", timeout=30)
     resp.raise_for_status()
 
     assets = []
     for item in resp.json().get("data", []):
         attrs = item.get("attributes", {})
-        assets.append({ "id":       item.get("id"),
+        assets.append({
+            "id":       item.get("id"),
             "name":     attrs.get("name"),
             "symbol":   attrs.get("symbol"),
             "kind":     attrs.get("category") or attrs.get("kind") or item.get("type"),
@@ -44,20 +40,12 @@ def get_conceptual_assets():
 
 
 def get_real_assets_for_conceptual(conceptual_asset_id):
-    """
-    GET /api/conceptual_assets/{id}/real_assets
-    Un activo conceptual puede tener múltiples series. Retorna lista de series.
-    """
     resp = requests.get(f"{BASE_URL}/conceptual_assets/{conceptual_asset_id}/real_assets", timeout=30)
     resp.raise_for_status()
     return resp.json().get("data", [])
 
+
 def get_price_history(real_asset_id, from_date=None, to_date=None):
-    """
-    GET /api/real_assets/{id}/days
-    Retorna lista de dicts con: date, price, nav, total_return
-    Por defecto trae el último año.
-    """
     if to_date is None:
         to_date = datetime.today().strftime("%Y-%m-%d")
     if from_date is None:
@@ -82,14 +70,13 @@ def get_price_history(real_asset_id, from_date=None, to_date=None):
     return rows
 
 
-
 def get_price_history_safe(real_asset_id, from_date=None, to_date=None, retries=5):
     for attempt in range(retries):
         try:
             return get_price_history(real_asset_id, from_date, to_date)
         except Exception as e:
             if "429" in str(e) and attempt < retries - 1:
-                wait = 2 ** attempt * 20  # Reintenta en 10s, 20s, 40s, 80s...
+                wait = 2 ** attempt * 20
                 print(f"Rate limit, esperando {wait}s...")
                 time.sleep(wait)
             else:
@@ -99,47 +86,76 @@ def get_price_history_safe(real_asset_id, from_date=None, to_date=None, retries=
 
 conn = psycopg2.connect(os.environ["DATABASE_URL"])
 cur = conn.cursor()
-assets = get_conceptual_assets() #ASSETS CONCEPTUALES
+assets = get_conceptual_assets()
 usefull = []
 
 for a in assets:
-  if a["kind"] == "etf" or a["kind"] == "mutual_fund":
-    usefull.append(a)
+    if a["kind"] == "etf" or a["kind"] == "mutual_fund":
+        usefull.append(a)
 
+# Para fondos mutuos insertar cada real_asset (serie) como fila separada
+# Para ETFs insertar el conceptual_asset como antes
 data = []
-for i in usefull:
-    kind = "fund" if i["kind"] == "mutual_fund" else "etf"
-    #currency = "CLP" if asset["kind"] == "mutual_fund" else "USD"
-    data.append(
-        (
-            i["symbol"],
-            i["name"],
-            kind,
-            i["currency"],
-        )
-    )
+# real_asset_symbol → real_asset_id de Fintual (para buscar precios después)
+real_asset_map = {}  # symbol_serie → fintual_real_asset_id
 
-query_assets = """ 
-INSERT INTO assets (symbol, name, kind, currency)
+for asset in usefull:
+    kind = "fund" if asset["kind"] == "mutual_fund" else "etf"
+
+    if asset["kind"] == "mutual_fund":
+        real_assets = get_real_assets_for_conceptual(asset["id"])
+        for ra in real_assets:
+            ra_attrs = ra.get("attributes", {})
+            ra_symbol = ra_attrs.get("symbol")
+            ra_serie  = ra_attrs.get("serie")
+            data.append((
+                ra_symbol,
+                asset["name"],
+                kind,
+                asset["currency"],
+                ra_serie,
+            ))
+            real_asset_map[ra_symbol] = ra["id"]
+        time.sleep(0.5)  # evitar 429 al buscar real_assets
+    else:
+        data.append((
+            asset["symbol"],
+            asset["name"],
+            kind,
+            asset["currency"],
+            None,  # serie = None para ETFs
+        ))
+
+query_assets = """
+INSERT INTO assets (symbol, name, kind, currency, serie)
 VALUES %s
 ON CONFLICT (symbol, name) DO NOTHING
-""" # subir nuevo asset si no está arriba
+"""
 execute_values(cur, query_assets, data)
 conn.commit()
 
-last_date = get_last_stored_date(cur) #fecha de última actualización
+last_date = get_last_stored_date(cur)
 if last_date:
-    last_date = (last_date + timedelta(days=1)).isoformat() #partimos desde el dia siguiente al último
+    last_date = (last_date + timedelta(days=1)).isoformat()
 cur.close()
 conn.close()
 
+# Para fondos mutuos usamos real_asset_map (ya tenemos los real_asset ids)
+# Para ETFs buscamos los real_assets igual que antes
 all_prices = {}
 
 for i, asset in enumerate(usefull):
-    real_assets = get_real_assets_for_conceptual(asset["id"])  #ASSETS REALES :)
-    if real_assets:
-        prices = get_price_history_safe(real_assets[0]["id"], last_date)
-        all_prices[asset["symbol"]] = prices
+    if asset["kind"] == "mutual_fund":
+        # ya tenemos los real_asset ids en real_asset_map
+        for ra_symbol, ra_id in real_asset_map.items():
+            if ra_symbol.startswith(asset["symbol"]):  # filtra los de este conceptual
+                prices = get_price_history_safe(ra_id, last_date)
+                all_prices[ra_symbol] = prices
+    else:
+        real_assets = get_real_assets_for_conceptual(asset["id"])
+        if real_assets:
+            prices = get_price_history_safe(real_assets[0]["id"], last_date)
+            all_prices[asset["symbol"]] = prices
 
     time.sleep(1)
 
@@ -147,8 +163,7 @@ for i, asset in enumerate(usefull):
         print(f"{i}/{len(usefull)} procesados...")
 
 
-#TIRAR A LA BDD
-
+# TIRAR A LA BDD
 conn = psycopg2.connect(os.environ["DATABASE_URL"])
 cur = conn.cursor()
 
@@ -171,7 +186,6 @@ for symbol, prices in all_prices.items():
             symbol_to_currency.get(symbol)
         ))
 
-
 query = """
 INSERT INTO asset_prices (asset_id, date, close, source, currency)
 VALUES %s
@@ -180,7 +194,5 @@ ON CONFLICT (asset_id, date) DO NOTHING
 execute_values(cur, query, price_data)
 
 conn.commit()
-
 cur.close()
 conn.close()
-
