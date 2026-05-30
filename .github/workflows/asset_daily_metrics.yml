@@ -2,9 +2,9 @@ name: Asset Daily Metrics
 
 
 on:
-  push:
-    branches:
-      - feat/metrics_1 #solo para testeo
+  #push:
+  #  #branches:
+  #    - feat/metrics_1 #solo para testeo
   schedule:
     - cron: "0 6 1 * *"  # primer día del mes :p
   workflow_dispatch:      
