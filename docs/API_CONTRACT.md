@@ -23,6 +23,7 @@
 | **profile** | 3 (`/profile`) |
 | **transactions** | 2 (`/transactions`) |
 | **webhooks** | 1 (`/webhooks/clerk`) |
+| **metrics** | 2 (`/assets/{asset_id}/metrics`, `/accounts/{asset_id}/metrics`) |
 
 
 ## accounts
