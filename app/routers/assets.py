@@ -51,26 +51,6 @@ async def get_asset(
     return asset
 
 # Nota Eduardo: Yo prefiero hacer consultas SQL manuales, personalmente lo encuentro más cómodo
-@router.get("/{asset_id}/metrics/daily")
-async def get_metric(
-    asset_id: uuid.UUID,
-    _user: Profile = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    query = text("""
-        SELECT *
-        FROM asset_daily_metrics
-        WHERE asset_id = :asset_id
-        ORDER BY date DESC
-    """)
-
-    result = await db.execute(
-        query,
-        {"asset_id": str(asset_id)},
-    )
-
-    return [dict(row._mapping) for row in result]
-
 @router.get("/{asset_id}/metrics")
 async def get_metrics(
     asset_id: uuid.UUID,

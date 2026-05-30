@@ -23,7 +23,7 @@
 | **profile** | 3 (`/profile`) |
 | **transactions** | 2 (`/transactions`) |
 | **webhooks** | 1 (`/webhooks/clerk`) |
-| **metrics** | 2 (`/assets/{asset_id}/metrics`, `/accounts/{asset_id}/metrics`) |
+| **metrics** | (`/assets/{asset_id}/metrics`, `/accounts/{account_id}/metrics`, `/portfolio/{portfolio_id}/metrics`, `/position/{position_id}/metrics`) |
 
 
 ## accounts
@@ -821,6 +821,103 @@ TransactionRead: {
 HTTPValidationError: {
     detail?: array of `ValidationError`
   }
+```
+
+## Metrics
+
+Las rutas retornan las métricas daily y/o monthly ordenadas por fecha (de la más reciente a la más antigua)
+
+### `GET` `/assets/{asset_id}/metrics`
+
+```
+"daily": [
+  {
+    "id": uuid
+    "asset_id": uuid
+    "date": date
+    "absolute_return": numeric(10, 4)
+    "volatility": numeric(10, 4)
+    "max_drawdown": numeric(10, 4)
+  }
+],
+"monthly": [
+  {
+    "id": uuid
+    "asset_id": uuid
+    "date": date
+    "beta": numeric(10, 4)
+  }
+]
+```
+
+### `GET` `/accounts/{account_id}/metrics`
+
+```
+"daily": [
+  {
+    "id": uuid
+    "account_id": uuid
+    "date": date
+    "pnl": numeric(18, 2)
+    "max_drawdown": numeric(18, 2)
+    "volatility": numeric(8, 6)
+  }
+],
+"monthly": [
+  {
+    "id": uuid
+    "account_id": uuid
+    "twr": numeric(10, 8)
+    "dietz": numeric(10, 8)
+    "sharpe_ratio": numeric(6, 4)
+    "var": numeric(18, 2)
+    "sortino": numeric(6, 4)
+    "assets_correlation": numeric(5, 4)
+  }
+]
+```
+
+### `GET` `/portfolio/{portfolio_id}/metrics`
+
+```
+"daily": [
+  {
+    "id": uuid
+    "portfolio_id": uuid
+    "date": date
+    "pnl": numeric(18, 2)
+    "max_drawdown": numeric(18, 2)
+    "volatility": numeric(8, 6)
+    "fx_decomposition": jsonb
+  }
+],
+"monthly": [
+  {
+    "id": uuid
+    "portfolio": uuid
+    "date": date
+    "twr": numeric(10, 8)
+    "dietz": numeric(10, 8)
+    "var": numeric(18, 2)
+    "accounts_correlation": numeric(5, 4)
+  }
+]
+```
+
+### `GET` `/positions/{position_id}/metrics`
+
+```
+"daily": [
+  {
+    "id": uuid
+    "position_id": uuid
+    "date": date
+    "pnl": numeric(20, 8)
+    "unrealized_pnl": numeric(20, 8)
+    "total_pnl": numeric(20, 8)
+    "personal_return": numeric(10, 4)
+  }
+]
 ```
 
 
