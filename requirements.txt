@@ -20,3 +20,4 @@ pdfplumber
 psycopg2-binary
 pandas
 python-multipart  # requerido por FastAPI cuando hay UploadFile/Form
+pytest-cov
