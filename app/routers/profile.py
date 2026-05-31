@@ -15,15 +15,6 @@ async def get_profile(user: Profile = Depends(get_current_user)) -> Profile:
     return user
 
 
-@router.patch("/risk-profile", response_model=UserRead)
-async def update_risk_profile(
-    payload: RiskProfileUpdate,
-    user: Profile = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-) -> Profile:
-    return await user_repo.update_risk_profile(db, user, payload.risk_profile)
-
-
 @router.put("", response_model=UserRead)
 async def update_profile(
     payload: RiskProfileUpdate,

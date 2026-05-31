@@ -20,9 +20,8 @@
 | **positions** | 1 (`/positions`) |
 | **preferences** | 2 (`/preferences`) |
 | **prices** | 2 (`/assets/{asset_id}/prices`) |
-| **profile** | 3 (`/profile`, `/profile/risk-profile`) |
+| **profile** | 3 (`/profile`) |
 | **transactions** | 2 (`/transactions`) |
-| **user** | 4 (`/user/accounts_names`, `/user/risk_profile`) |
 | **webhooks** | 1 (`/webhooks/clerk`) |
 
 
@@ -734,20 +733,6 @@ HTTPValidationError: {
   }
 ```
 
----
-
-### `PATCH` `/profile/risk-profile`
-
-Update Risk Profile
-
-**Request body** (application/json):
-
-```
-RiskProfileUpdate: {
-    risk_profile: `RiskProfile`
-  }
-```
-
 **Response 200** — Successful Response:
 
 ```
@@ -836,102 +821,6 @@ HTTPValidationError: {
     detail?: array of `ValidationError`
   }
 ```
-
----
-
-
-## user
-
-### `GET` `/user/accounts_names`
-
-List Accounts Names
-
-**Response 200** — Successful Response:
-
-```
-array of AccountNameRead:
-{
-    id: string (uuid)
-    name: string
-  }
-```
-
----
-
-### `PUT` `/user/accounts_names`
-
-Rename Accounts
-
-**Request body** (application/json):
-
-```
-array of `AccountNameRename` {
-    id: string (uuid)
-    name: string
-  }
-```
-
-**Response 200** — Successful Response:
-
-```
-array of AccountNameRead:
-{
-    id: string (uuid)
-    name: string
-  }
-```
-
-**Response 422** — Validation Error:
-
-```
-HTTPValidationError: {
-    detail?: array of `ValidationError`
-  }
-```
-
----
-
-### `GET` `/user/risk_profile`
-
-Get Risk Profile
-
-**Response 200** — Successful Response:
-
-```
-{
-  }
-```
-
----
-
-### `PUT` `/user/risk_profile`
-
-Update Risk Profile Alias
-
-**Request body** (application/json):
-
-```
-RiskProfileUpdate: {
-    risk_profile: `RiskProfile`
-  }
-```
-
-**Response 200** — Successful Response:
-
-```
-{
-  }
-```
-
-**Response 422** — Validation Error:
-
-```
-HTTPValidationError: {
-    detail?: array of `ValidationError`
-  }
-```
-
----
 
 
 ## webhooks
