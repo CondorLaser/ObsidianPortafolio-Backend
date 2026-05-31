@@ -22,3 +22,12 @@ echo "API up tras ${i}s"
 echo
 echo "═══ Corriendo integration_test contra LOCAL ═══"
 docker compose exec -T api python -m scripts.integration_test --label=local "$@"
+
+
+echo === Fase 5b: Daily Metrics ===
+docker compose run --rm api python scripts/asset_metrics_test.py
+if [ $? -ne 0 ]; then
+  echo "  ❌ Fase 5b FALLÓ"
+  exit 1
+fi
+echo "  ✅ Fase 5b: Daily Metrics OK"
