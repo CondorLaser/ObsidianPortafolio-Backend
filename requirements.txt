@@ -1,6 +1,11 @@
 fastapi
 uvicorn[standard]
 python-dotenv
+pydantic-settings
+
+sqlalchemy[asyncio]>=2.0
+asyncpg
+alembic
 
 flake8
 pytest
@@ -9,4 +14,10 @@ httpx
 python-jose
 requests
 svix
-psycopg2
+
+# Ingesta (PDFs Fintual + sync de precios por GitHub Action)
+pdfplumber
+psycopg2-binary
+pandas
+python-multipart  # requerido por FastAPI cuando hay UploadFile/Form
+pytest-cov

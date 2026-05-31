@@ -1,0 +1,55 @@
+---
+title: Orion Portafolio — Modelo de dominio (conceptual)
+---
+flowchart TB
+    classDef actor fill:#E3F2FD,stroke:#1565C0,stroke-width:2px,color:#0D47A1
+    classDef core fill:#E8F5E9,stroke:#2E7D32,stroke-width:2px,color:#1B5E20
+    classDef derived fill:#F5F5F5,stroke:#757575,stroke-width:1px,stroke-dasharray:5 3,color:#424242
+    classDef external fill:#FFF3E0,stroke:#EF6C00,stroke-width:2px,color:#BF360C
+    classDef event fill:#FCE4EC,stroke:#AD1457,stroke-width:2px,color:#880E4F
+
+    Inversionista([Inversionista]):::actor
+
+    Inversionista -- "posee" --> Cuenta
+    Inversionista -- "tiene perfil de" --> Perfil
+    Inversionista -- "configura" --> ReglaAlerta
+    Inversionista -- "recibe" --> Alerta
+    Inversionista -- "recibe" --> Recomendacion
+    Inversionista -- "carga" --> Certificado
+
+    Cuenta[Cuenta de inversión<br/>broker · moneda]:::core
+    Perfil[Perfil<br/>nombre · país · perfil de riesgo]:::core
+    Activo[Activo financiero<br/>stock · ETF · fondo mutuo]:::core
+    Transaccion[Transacción<br/>compra · venta · dividendo · fee]:::core
+    Certificado[Certificado de transacciones<br/>PDF Fintual · CSV]:::event
+
+    Cuenta -- "registra" --> Transaccion
+    Transaccion -- "sobre un" --> Activo
+    Certificado -- "origina" --> Transaccion
+
+    Activo -- "tiene serie de" --> Precio
+    Precio[Precio histórico<br/>cierre diario]:::core
+
+    Posicion[Posición<br/>cantidad neta · costo promedio]:::derived
+    Patrimonio[Patrimonio<br/>valor total · evolución]:::derived
+    Rentabilidad[Rentabilidad<br/>%, anualizada, vol., Sharpe]:::derived
+    Distribucion[Distribución<br/>por activo · moneda · cuenta]:::derived
+
+    Cuenta -. "deriva" .-> Posicion
+    Posicion -. "deriva" .-> Patrimonio
+    Patrimonio -. "deriva" .-> Rentabilidad
+    Patrimonio -. "deriva" .-> Distribucion
+
+    ReglaAlerta[Regla de alerta<br/>umbral configurable]:::core
+    Alerta[Alerta<br/>severidad · estado]:::event
+    ReglaAlerta -- "dispara" --> Alerta
+
+    Recomendacion[Recomendación<br/>activo sugerido · match]:::core
+
+    TwelveData[(TwelveData<br/>precios ETF/stock)]:::external
+    Fintual[(Fintual<br/>precios fondos mutuos)]:::external
+    Clerk[(Clerk<br/>identidad)]:::external
+
+    TwelveData -- "alimenta" --> Precio
+    Fintual -- "alimenta" --> Precio
+    Clerk -- "autentica" --> Inversionista
