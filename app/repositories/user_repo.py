@@ -3,6 +3,8 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.user import Profile, RiskProfile
+from app.repositories import account_repo
+from app.schemas.account import AccountCreate
 
 
 async def get_or_create_by_clerk_id(
@@ -14,14 +16,23 @@ async def get_or_create_by_clerk_id(
         insert(Profile)
         .values(clerk_id=clerk_id, email=email)
         .on_conflict_do_nothing(index_elements=["clerk_id"])
+        .returning(Profile.clerk_id)
     )
-    await session.execute(stmt)
+    result_insert = await session.execute(stmt)
+    is_new_user = result_insert.scalar_one_or_none() is not None
+
     await session.commit()
 
     result = await session.execute(
         select(Profile).where(Profile.clerk_id == clerk_id)
     )
-    return result.scalar_one()
+    profile = result.scalar_one()
+
+    if is_new_user:
+        await account_repo.create(session, clerk_id, AccountCreate(name="Mi cuenta principal"))
+        await session.commit()
+
+    return profile
 
 
 async def update_risk_profile(

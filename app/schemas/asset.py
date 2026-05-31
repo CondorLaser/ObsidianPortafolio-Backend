@@ -29,7 +29,7 @@ class AssetRead(BaseModel):
     symbol: str
     name: str
     kind: AssetKind
-    currency: str
+    currency: str | None = None
     created_at: datetime
 
 
