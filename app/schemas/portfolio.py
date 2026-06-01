@@ -47,12 +47,21 @@ class AccountDistributionItem(BaseModel):
 
 
 class PortfolioSummary(BaseModel):
-    """Métricas agregadas del último snapshot disponible."""
+    """Métricas agregadas del último snapshot disponible.
 
-    total_value: Decimal
-    total_invested: Decimal
-    unrealized_pnl: Decimal
-    total_return_pct: Decimal  # variación vs snapshot anterior (0..1)
+    Si el user tiene 1 sola currency, total_value/total_invested/unrealized_pnl
+    son la suma honesta en esa moneda. Si tiene múltiples (USD + CLP), esos
+    3 campos vienen en NULL (sumar sin FX engañaría) y el frontend debe
+    iterar los *_by_currency para mostrar 1 card por moneda.
+    """
+
+    total_value: Decimal | None
+    total_invested: Decimal | None
+    unrealized_pnl: Decimal | None
+    total_value_by_currency: dict[str, Decimal]
+    total_invested_by_currency: dict[str, Decimal]
+    unrealized_pnl_by_currency: dict[str, Decimal]
+    total_return_pct: Decimal | None  # variación vs snapshot anterior (0..1)
     active_positions: int
     linked_accounts: int
     last_snapshot_date: date_type | None

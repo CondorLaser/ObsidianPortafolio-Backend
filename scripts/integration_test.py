@@ -784,6 +784,19 @@ async def test_portfolio_reconstruction(r: Report):
             f"positions={dash['summary']['active_positions']}, accounts={dash['summary']['linked_accounts']}",
         )
 
+    # Single-currency (USD): los escalares total_value/invested/unrealized
+    # NO son None, y total_value_by_currency tiene 1 sola entrada (USD).
+    summary = dash["summary"]
+    if (summary["total_value"] is not None
+            and list(summary["total_value_by_currency"].keys()) == ["USD"]
+            and abs(summary["total_value_by_currency"]["USD"] - Decimal("1632")) < Decimal("0.01")):
+        r.ok(f"single-currency USD: scalar={summary['total_value']} == by_currency['USD']={summary['total_value_by_currency']['USD']}")
+    else:
+        r.fail(
+            "shape by currency",
+            f"scalar={summary['total_value']}, by_currency={summary['total_value_by_currency']}",
+        )
+
     if len(dash["trend"]) == expected_days:
         r.ok(f"dashboard.trend tiene {len(dash['trend'])} puntos")
     else:

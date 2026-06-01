@@ -307,19 +307,55 @@ async def get_dashboard_data(
     )
     accounts_meta = {str(r.id): (r.name, r.currency) for r in accs_q.all()}
 
-    # account distribution = breakdown_by_account del latest snapshot
+    # ── breakdowns por currency ──
+    # total_value_by_currency viene del snapshot.breakdown_by_currency.
+    # total_invested/unrealized se recomputan desde positions (que están
+    # materializadas por el cron) agrupadas por la currency de su account.
+    total_value_by_currency: dict[str, Decimal] = {}
+    if latest and latest.breakdown_by_currency:
+        total_value_by_currency = {
+            curr: Decimal(str(amount))
+            for curr, amount in latest.breakdown_by_currency.items()
+        }
+
+    # positions materializadas (1 row por par account+asset)
+    pos_q = await session.execute(
+        select(Position, Account.currency)
+        .join(Account, Account.id == Position.account_id)
+        .where(Account.user_id == clerk_id)
+    )
+    total_invested_by_currency: dict[str, Decimal] = {}
+    for pos, curr in pos_q.all():
+        invested = (pos.quantity or ZERO) * (pos.avg_cost or ZERO)
+        total_invested_by_currency[curr] = (
+            total_invested_by_currency.get(curr, ZERO) + invested
+        )
+
+    # unrealized_by_currency = total_value - total_invested por currency
+    all_currencies = set(total_value_by_currency) | set(total_invested_by_currency)
+    unrealized_pnl_by_currency = {
+        curr: total_value_by_currency.get(curr, ZERO)
+        - total_invested_by_currency.get(curr, ZERO)
+        for curr in all_currencies
+    }
+
+    # account distribution = breakdown_by_account del latest snapshot.
+    # percentage normaliza solo contra el TOTAL DE LA MISMA CURRENCY (no
+    # mezclamos CLP+USD en el denominador).
     distribution = []
-    if latest and latest.breakdown_by_account and latest.total_value:
-        total = Decimal(str(latest.total_value))
+    if latest and latest.breakdown_by_account:
         for acc_id_str, amount in latest.breakdown_by_account.items():
             amount_dec = Decimal(str(amount))
             name, curr = accounts_meta.get(acc_id_str, ("Cuenta", "USD"))
+            total_curr = total_value_by_currency.get(curr, ZERO)
             distribution.append(
                 {
                     "account_id": uuid.UUID(acc_id_str),
                     "name": name,
                     "amount": amount_dec,
-                    "percentage": (amount_dec / total) if total > 0 else ZERO,
+                    "percentage": (
+                        (amount_dec / total_curr) if total_curr > 0 else ZERO
+                    ),
                     "currency": curr,
                 }
             )
@@ -327,35 +363,41 @@ async def get_dashboard_data(
     # positions derivadas (mismo cálculo que GET /positions, reusa el SQL)
     positions = await position_repo.list_for_user(session, clerk_id)
 
-    # summary
-    if latest:
-        total_value = latest.total_value or ZERO
-        total_invested = latest.total_invested or ZERO
-        unrealized = latest.unrealized_pnl or ZERO
-        prev_value = (prev.total_value if prev else None) or ZERO
-        return_pct = (
-            ((total_value - prev_value) / prev_value) if prev_value > 0 else ZERO
-        )
-        summary = {
-            "total_value": total_value,
-            "total_invested": total_invested,
-            "unrealized_pnl": unrealized,
-            "total_return_pct": return_pct,
-            "active_positions": len(positions),
-            "linked_accounts": len(accounts_meta),
-            "last_snapshot_date": latest.date,
-        }
+    # summary: si hay UNA sola currency llenamos los Decimal escalares;
+    # si hay múltiples, NULL en escalares y el frontend usa los *_by_currency.
+    user_currencies = set(c for _, c in accounts_meta.values())
+    is_single_currency = len(user_currencies) == 1
+
+    if is_single_currency:
+        only = next(iter(user_currencies))
+        scalar_value = total_value_by_currency.get(only, ZERO)
+        scalar_invested = total_invested_by_currency.get(only, ZERO)
+        scalar_unrealized = unrealized_pnl_by_currency.get(only, ZERO)
     else:
-        # Sin snapshots (ej. user nuevo): devolvemos summary en cero, no 404.
-        summary = {
-            "total_value": ZERO,
-            "total_invested": ZERO,
-            "unrealized_pnl": ZERO,
-            "total_return_pct": ZERO,
-            "active_positions": len(positions),
-            "linked_accounts": len(accounts_meta),
-            "last_snapshot_date": None,
-        }
+        scalar_value = None
+        scalar_invested = None
+        scalar_unrealized = None
+
+    # total_return_pct se calcula solo cuando hay 1 currency y un snapshot
+    # previo válido (sin FX, comparar valores multi-currency no tiene sentido).
+    return_pct: Decimal | None = None
+    if is_single_currency and latest and prev and latest.total_value and prev.total_value:
+        prev_v = Decimal(str(prev.total_value))
+        if prev_v > 0:
+            return_pct = (Decimal(str(latest.total_value)) - prev_v) / prev_v
+
+    summary = {
+        "total_value": scalar_value,
+        "total_invested": scalar_invested,
+        "unrealized_pnl": scalar_unrealized,
+        "total_value_by_currency": total_value_by_currency,
+        "total_invested_by_currency": total_invested_by_currency,
+        "unrealized_pnl_by_currency": unrealized_pnl_by_currency,
+        "total_return_pct": return_pct,
+        "active_positions": len(positions),
+        "linked_accounts": len(accounts_meta),
+        "last_snapshot_date": latest.date if latest else None,
+    }
 
     return {
         "summary": summary,
