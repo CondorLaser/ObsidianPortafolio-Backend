@@ -1,10 +1,10 @@
-name: Sync Stock Prices
+name: Sync Fund Etf Prices
 
 
 on:
-  #push:
-  #  branches:
-  #    - feat/ingesta_fintual #solo para testeo
+  push:
+    branches:
+      - feat/ingesta_fintual #solo para testeo
   schedule:
     - cron: "0 5 * * *"  # todos los días en la noche
   workflow_dispatch:      
@@ -27,4 +27,4 @@ jobs:
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           TWELVEDATA_API_KEY: ${{ secrets.TWELVEDATA_API_KEY }}
-        run: python sync_stock_prices.py
+        run: python sync_fund_etf_prices.py
