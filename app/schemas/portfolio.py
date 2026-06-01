@@ -1,9 +1,5 @@
-"""DTOs para el dashboard de portafolio.
-
-Shape compatible con el mock del frontend (src/mocks/data/portfolio_snapshot.json
-y handlers.js `getPortfolioSummary/Trend`). Devolvemos data CRUDA (Decimal/ISO
-date); el frontend formatea con Intl.
-"""
+"""DTOs para GET /portfolio/dashboard. Shape derivado del mock del frontend
+(portfolio_snapshot.json + handlers.js)."""
 import uuid
 from datetime import date as date_type
 from decimal import Decimal
@@ -14,8 +10,6 @@ from app.schemas.position import PositionDerived
 
 
 class PortfolioSnapshotRead(BaseModel):
-    """Una foto diaria del patrimonio del usuario (lectura 1:1 de la tabla)."""
-
     model_config = ConfigDict(from_attributes=True)
 
     id: uuid.UUID
@@ -30,38 +24,34 @@ class PortfolioSnapshotRead(BaseModel):
 
 
 class TrendPoint(BaseModel):
-    """Un punto de la serie de evolución del portafolio."""
-
     date: date_type
     value: Decimal
 
 
 class AccountDistributionItem(BaseModel):
-    """Peso de una cuenta sobre el total del portafolio en el último snapshot."""
-
     account_id: uuid.UUID
     name: str
     amount: Decimal
-    percentage: Decimal  # 0..1 (frontend lo multiplica x100)
+    percentage: Decimal  # 0..1
     currency: str
 
 
 class PortfolioSummary(BaseModel):
-    """Métricas agregadas del último snapshot disponible."""
-
-    total_value: Decimal
-    total_invested: Decimal
-    unrealized_pnl: Decimal
-    total_return_pct: Decimal  # variación vs snapshot anterior (0..1)
+    # Escalares: poblados sólo si el user tiene 1 sola currency. Null si tiene
+    # múltiples — sumar CLP + USD sin FX engañaría. Frontend cae a *_by_currency.
+    total_value: Decimal | None
+    total_invested: Decimal | None
+    unrealized_pnl: Decimal | None
+    total_value_by_currency: dict[str, Decimal]
+    total_invested_by_currency: dict[str, Decimal]
+    unrealized_pnl_by_currency: dict[str, Decimal]
+    total_return_pct: Decimal | None
     active_positions: int
     linked_accounts: int
     last_snapshot_date: date_type | None
 
 
 class PortfolioDashboard(BaseModel):
-    """Response de GET /portfolio/dashboard — agrega summary + trend +
-    distribución por cuenta + posiciones derivadas en un solo response."""
-
     summary: PortfolioSummary
     trend: list[TrendPoint]
     account_distribution: list[AccountDistributionItem]

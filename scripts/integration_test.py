@@ -91,6 +91,7 @@ EXPECTED_ROUTES = {
     ("POST", "/transactions"),
     ("POST", "/webhooks/clerk"),
     ("GET", "/portfolio/dashboard"),
+    ("POST", "/portfolio/rebuild"),
 }
 
 
@@ -193,6 +194,7 @@ def test_protected_endpoints_reject_401(r: Report, client: httpx.Client):
         ("POST", "/pdf/extract_stocks_etf_2"),
         ("GET", "/protected"),
         ("GET", "/portfolio/dashboard"),
+        ("POST", "/portfolio/rebuild"),
     ]
     ok = 0
     for method, path in protected:
@@ -784,10 +786,145 @@ async def test_portfolio_reconstruction(r: Report):
             f"positions={dash['summary']['active_positions']}, accounts={dash['summary']['linked_accounts']}",
         )
 
+    # Single-currency (USD): los escalares total_value/invested/unrealized
+    # NO son None, y total_value_by_currency tiene 1 sola entrada (USD).
+    summary = dash["summary"]
+    if (summary["total_value"] is not None
+            and list(summary["total_value_by_currency"].keys()) == ["USD"]
+            and abs(summary["total_value_by_currency"]["USD"] - Decimal("1632")) < Decimal("0.01")):
+        r.ok(f"single-currency USD: scalar={summary['total_value']} == by_currency['USD']={summary['total_value_by_currency']['USD']}")
+    else:
+        r.fail(
+            "shape by currency",
+            f"scalar={summary['total_value']}, by_currency={summary['total_value_by_currency']}",
+        )
+
     if len(dash["trend"]) == expected_days:
         r.ok(f"dashboard.trend tiene {len(dash['trend'])} puntos")
     else:
         r.fail("dashboard.trend", f"got {len(dash['trend'])} puntos, esperaba {expected_days}")
+
+
+# ────────────────────────────────────────────────────────────────────────────
+# Fase 7 — End-to-End: PDF Fintual → ingest → rebuild → dashboard
+# ────────────────────────────────────────────────────────────────────────────
+async def test_e2e_pdf_to_dashboard(r: Report):
+    """Flujo completo del producto:
+      1. Pre-condición: existe asset en catálogo (por sync_stock_prices o manual)
+      2. Usuario sube PDF → pdf_repo crea transactions + dividends
+      3. Frontend dispara POST /portfolio/rebuild → snapshots persistidos
+      4. Frontend lee GET /portfolio/dashboard → ve el portafolio actualizado
+
+    Acá simulamos las 4 capas con repos directos (no podemos hacer HTTP
+    autenticado en CI sin JWT real). El test verifica que el flujo de DATOS
+    es consistente extremo a extremo.
+    """
+    from app.repositories import pdf_repo, portfolio_repo
+
+    section("Fase 7.1 — E2E: PDF → ingest → rebuild → dashboard")
+
+    u_id = f"{TEST_USER_PREFIX}e2e_pdf"
+
+    async with SessionLocal() as db:
+        await user_repo.get_or_create_by_clerk_id(db, u_id, "e2e@inttest.io")
+        symbol = f"_INTTEST_E2E{int(time.time())}"
+        asset = await asset_repo.create(
+            db, AssetCreate(symbol=symbol, name=f"E2E Stock {symbol}",
+                            kind=AssetKind.stock, currency="USD"),
+        )
+        acc = await account_repo.create(
+            db, u_id, AccountCreate(name="_inttest_e2e_acc", currency="USD")
+        )
+        # Precio actual para que el dashboard tenga market_value
+        await asset_price_repo.upsert(
+            db, asset.id,
+            AssetPriceCreate(date=date.today(), close=Decimal("150"),
+                             currency="USD", source="_inttest"),
+        )
+
+    # ── 1. Simular subida de PDF ────────────────────────────────────────
+    purchase_sales = [
+        # buy 10@100 hace 5 días
+        [(date.today() - timedelta(days=5)).strftime("%Y-%m-%d"),
+         asset.name, symbol, "stock", 1000.0, 10.0, 0.0, 0.0],
+    ]
+    dividends_rows = [
+        # dividendo 50 neto hace 2 días
+        [(date.today() - timedelta(days=2)).strftime("%Y-%m-%d"),
+         asset.name, symbol, "stock", 60.0, 10.0, 50.0],
+    ]
+    async with SessionLocal() as db:
+        result = await pdf_repo.stocks_etf_1(
+            db, u_id, [purchase_sales, dividends_rows], acc.id
+        )
+
+    if (result["compras_ventas_guardadas"] == 1
+            and result["dividendos_guardados"] == 1
+            and not result["errores_activos_faltantes"]):
+        r.ok("paso 1 — PDF ingest: 1 tx (buy) + 1 dividend persistidos")
+    else:
+        r.fail("paso 1 — PDF ingest", f"result={result}")
+
+    # ── 2. Disparar rebuild (lo que hace POST /portfolio/rebuild internamente) ──
+    async with SessionLocal() as db:
+        snaps, pos = await portfolio_repo.compute_user_series(db, u_id)
+        n_snaps = await portfolio_repo.replace_snapshots(db, u_id, snaps)
+        n_pos = await portfolio_repo.replace_positions(db, u_id, pos)
+
+    # Esperamos ~6 días (D-5..today inclusive)
+    if n_snaps == 6 and n_pos == 1:
+        r.ok(f"paso 2 — rebuild: {n_snaps} snapshots + {n_pos} position")
+    else:
+        r.fail("paso 2 — rebuild", f"snaps={n_snaps}, pos={n_pos}, expected 6+1")
+
+    # ── 3. Leer dashboard (lo que hace GET /portfolio/dashboard) ────────
+    async with SessionLocal() as db:
+        dash = await portfolio_repo.get_dashboard_data(db, u_id)
+
+    summary = dash["summary"]
+    # buy 10@100 → invested = 1000. Precio hoy = 150 → value = 10*150 = 1500.
+    # unrealized = 1500 - 1000 = 500.
+    expected_value = Decimal("1500")
+    if (summary["total_value"] is not None
+            and abs(summary["total_value"] - expected_value) < Decimal("0.01")):
+        r.ok(f"paso 3 — dashboard.total_value = {summary['total_value']} (esperado 1500)")
+    else:
+        r.fail("paso 3 — dashboard.total_value",
+               f"got {summary['total_value']}, expected {expected_value}")
+
+    if summary["active_positions"] == 1:
+        r.ok("paso 3 — dashboard.active_positions = 1")
+    else:
+        r.fail("paso 3 — active_positions",
+               f"got {summary['active_positions']}, expected 1")
+
+    # ── 4. Re-rebuild idempotente (mismo input → mismo output) ──────────
+    async with SessionLocal() as db:
+        snaps2, pos2 = await portfolio_repo.compute_user_series(db, u_id)
+        n_snaps2 = await portfolio_repo.replace_snapshots(db, u_id, snaps2)
+        n_pos2 = await portfolio_repo.replace_positions(db, u_id, pos2)
+
+    if n_snaps2 == n_snaps and n_pos2 == n_pos:
+        r.ok(f"paso 4 — rebuild idempotente: {n_snaps2} snapshots, {n_pos2} position")
+    else:
+        r.fail("paso 4 — rebuild idempotente",
+               f"first={n_snaps}+{n_pos}, second={n_snaps2}+{n_pos2}")
+
+    # ── 5. trend filtrado por rango (paginación) ──────────────────────
+    async with SessionLocal() as db:
+        dash_full = await portfolio_repo.get_dashboard_data(db, u_id)
+        # Pido solo los últimos 3 días → debería retornar 3 puntos
+        dash_partial = await portfolio_repo.get_dashboard_data(
+            db, u_id, trend_from=date.today() - timedelta(days=2),
+        )
+
+    if len(dash_full["trend"]) == 6 and len(dash_partial["trend"]) == 3:
+        r.ok(f"paso 5 — trend pagina: full={len(dash_full['trend'])}, "
+             f"trend_from D-2={len(dash_partial['trend'])}")
+    else:
+        r.fail("paso 5 — trend filtering",
+               f"full={len(dash_full['trend'])} (esperado 6), "
+               f"partial={len(dash_partial['trend'])} (esperado 3)")
 
 
 # ────────────────────────────────────────────────────────────────────────────
@@ -874,6 +1011,9 @@ async def main(api_url: str, label: str, cleanup: bool) -> int:
 
     # Fase 6: portfolio reconstruction
     await test_portfolio_reconstruction(r)
+
+    # Fase 7: end-to-end (PDF → ingest → rebuild → dashboard)
+    await test_e2e_pdf_to_dashboard(r)
 
     if cleanup:
         section("Cleanup: borrar profiles + assets de test")
