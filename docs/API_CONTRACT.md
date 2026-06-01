@@ -2,8 +2,8 @@
 
 > ⚙️ Generado automáticamente desde `/openapi.json`. **NO editar a mano** — re-correr `scripts/generate_api_contract.py`.
 
-**Total endpoints**: 29  
-**Base URL local**: `http://localhost:8000` (sin `/api/v1`)  
+**Total endpoints**: 30  
+**Base URL local**: `http://localhost:8001` (sin `/api/v1`)  
 **Auth**: Bearer JWT Clerk en header `Authorization` (excepto rutas públicas)
 
 ## Resumen
@@ -17,7 +17,7 @@
 | **misc** | 2 (`/`, `/protected`) |
 | **onboarding** | 1 (`/risk_profile`) |
 | **pdf** | 3 (`/pdf/extract_mutual_funds`, `/pdf/extract_stocks_etf_1`, `/pdf/extract_stocks_etf_2`) |
-| **portfolio** | 1 (`/portfolio/dashboard`) |
+| **portfolio** | 2 (`/portfolio/dashboard`, `/portfolio/rebuild`) |
 | **positions** | 1 (`/positions`) |
 | **preferences** | 2 (`/preferences`) |
 | **prices** | 2 (`/assets/{asset_id}/prices`) |
@@ -526,6 +526,21 @@ PortfolioDashboard: {
     trend: array of `TrendPoint`
     account_distribution: array of `AccountDistributionItem`
     positions: array of `PositionDerived`
+  }
+```
+
+---
+
+### `POST` `/portfolio/rebuild`
+
+Rebuild Portfolio
+
+**Response 200** — Successful Response:
+
+```
+RebuildResult: {
+    snapshots_persisted: integer
+    positions_persisted: integer
   }
 ```
 

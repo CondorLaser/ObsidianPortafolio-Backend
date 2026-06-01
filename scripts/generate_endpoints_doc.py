@@ -159,6 +159,11 @@ def main():
                       "trend: [{date, value}]. account_distribution: [{account_id, name, amount, percentage, currency}] "
                       "(percentage normalizado por su currency). "
                       "positions: PositionDerived computado on-the-fly desde transactions + asset_prices.")
+    add_endpoint(doc, "POST", "/portfolio/rebuild", "🔒 Clerk",
+                 returns="{snapshots_persisted: int, positions_persisted: int}",
+                 note="Recomputa snapshots + positions del user. Pensado para llamar desde el "
+                      "frontend después de subir un PDF (cuando se crearon transactions nuevas y "
+                      "el cron diario todavía no corrió). Sync, ~3-7s. Idempotente.")
     add_endpoint(doc, "GET", "/accounts", "🔒 Clerk",
                  returns="Lista de cuentas del usuario (más reciente primero)")
     add_endpoint(doc, "GET", "/positions", "🔒 Clerk",

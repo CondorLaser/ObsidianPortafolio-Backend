@@ -23,8 +23,8 @@ jobs:
 
       - name: Reconstruir portfolio snapshots + positions
         env:
-          # Neon develop. Formato asyncpg porque el repo usa SQLAlchemy async.
-          # El secret en GH debe estar en formato:
-          #   postgresql+asyncpg://neondb_owner:...@ep-...neon.tech/neondb
-          DATABASE_URL: ${{ secrets.DATABASE_URL_ASYNCPG }}
+          # Reusamos el secret DATABASE_URL existente (formato psycopg2).
+          # app/core/config.py normaliza automáticamente postgresql:// →
+          # postgresql+asyncpg:// para SQLAlchemy.
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: python -m scripts_ghactions.portfolio_reconstruction
