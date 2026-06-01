@@ -1,5 +1,6 @@
 import os
 import subprocess
+import uuid
 
 import psycopg2
 import pytest
@@ -25,18 +26,29 @@ def metrics_asset():
     conn = psycopg2.connect(os.environ["DATABASE_TESTING"])
     cur = conn.cursor()
 
-    # Setup
+    # Setup — idempotente: borramos residuos de runs anteriores
+    # (no podemos usar ON CONFLICT porque assets no tiene unique constraint
+    # sobre symbol — el mismo symbol puede ser stock y fund a la vez).
     cur.execute("""
-        INSERT INTO assets (symbol, name, kind, currency)
-        VALUES ('_INTTEST_METRICS_001', '[_INTTEST_] Asset métricas', 'etf', 'USD')
-        ON CONFLICT (symbol, name) DO NOTHING
-        RETURNING id
+        DELETE FROM asset_daily_metrics
+        WHERE asset_id IN (SELECT id FROM assets WHERE symbol = '_INTTEST_METRICS_001')
     """)
-    row = cur.fetchone()
-    if row is None:
-        cur.execute("SELECT id FROM assets WHERE symbol = '_INTTEST_METRICS_001'")
-        row = cur.fetchone()
-    asset_id = row[0]
+    cur.execute("""
+        DELETE FROM asset_prices
+        WHERE asset_id IN (SELECT id FROM assets WHERE symbol = '_INTTEST_METRICS_001')
+    """)
+    cur.execute("DELETE FROM assets WHERE symbol = '_INTTEST_METRICS_001'")
+    # id no tiene server_default (lo genera SQLAlchemy en Python); como acá
+    # entramos directo con psycopg2, generamos el UUID nosotros. Usamos str
+    # porque psycopg2 plain no adapta uuid.UUID nativamente.
+    asset_id = str(uuid.uuid4())
+    cur.execute(
+        """
+        INSERT INTO assets (id, symbol, name, kind, currency)
+        VALUES (%s, '_INTTEST_METRICS_001', '[_INTTEST_] Asset métricas', 'etf', 'USD')
+        """,
+        (asset_id,),
+    )
 
     # Precios diseñados para resultados deterministas:
     #   absolute_return  = (100 - 100) / 100 = 0.00%   (inicio == fin)
