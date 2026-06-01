@@ -1,5 +1,6 @@
 import os
 import subprocess
+import uuid
 
 import psycopg2
 import pytest
@@ -37,12 +38,16 @@ def metrics_asset():
         WHERE asset_id IN (SELECT id FROM assets WHERE symbol = '_INTTEST_METRICS_001')
     """)
     cur.execute("DELETE FROM assets WHERE symbol = '_INTTEST_METRICS_001'")
-    cur.execute("""
-        INSERT INTO assets (symbol, name, kind, currency)
-        VALUES ('_INTTEST_METRICS_001', '[_INTTEST_] Asset métricas', 'etf', 'USD')
-        RETURNING id
-    """)
-    asset_id = cur.fetchone()[0]
+    # id no tiene server_default (lo genera SQLAlchemy en Python); como acá
+    # entramos directo con psycopg2, generamos el UUID nosotros.
+    asset_id = uuid.uuid4()
+    cur.execute(
+        """
+        INSERT INTO assets (id, symbol, name, kind, currency)
+        VALUES (%s, '_INTTEST_METRICS_001', '[_INTTEST_] Asset métricas', 'etf', 'USD')
+        """,
+        (str(asset_id),),
+    )
 
     # Precios diseñados para resultados deterministas:
     #   absolute_return  = (100 - 100) / 100 = 0.00%   (inicio == fin)
