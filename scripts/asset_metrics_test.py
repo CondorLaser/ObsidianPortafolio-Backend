@@ -39,14 +39,15 @@ def metrics_asset():
     """)
     cur.execute("DELETE FROM assets WHERE symbol = '_INTTEST_METRICS_001'")
     # id no tiene server_default (lo genera SQLAlchemy en Python); como acá
-    # entramos directo con psycopg2, generamos el UUID nosotros.
-    asset_id = uuid.uuid4()
+    # entramos directo con psycopg2, generamos el UUID nosotros. Usamos str
+    # porque psycopg2 plain no adapta uuid.UUID nativamente.
+    asset_id = str(uuid.uuid4())
     cur.execute(
         """
         INSERT INTO assets (id, symbol, name, kind, currency)
         VALUES (%s, '_INTTEST_METRICS_001', '[_INTTEST_] Asset métricas', 'etf', 'USD')
         """,
-        (str(asset_id),),
+        (asset_id,),
     )
 
     # Precios diseñados para resultados deterministas:
