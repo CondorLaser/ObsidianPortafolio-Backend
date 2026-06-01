@@ -142,8 +142,23 @@ def main():
     add_section_intro(doc, [
         "Necesita: vista global del patrimonio del usuario (todas sus cuentas, "
         "todas las transactions, todos los dividends, posiciones consolidadas).",
+        "Contrato derivado del mock del frontend (portfolio-content.js + "
+        "portfolio_snapshot.json): un único endpoint agregado /portfolio/dashboard "
+        "devuelve summary + trend + account_distribution + positions en un solo response. "
+        "Backend entrega data CRUDA (Decimal + ISO date); el frontend formatea con Intl. "
+        "Sin FX: si el user tiene 1 sola currency los escalares total_value/invested/pnl "
+        "son la suma honesta; si tiene múltiples, esos escalares vienen NULL y "
+        "el frontend itera total_value_by_currency (1 card por moneda).",
     ])
     doc.add_paragraph("Endpoints:")
+    add_endpoint(doc, "GET", "/portfolio/dashboard", "🔒 Clerk",
+                 returns="PortfolioDashboard: {summary, trend, account_distribution, positions}",
+                 note="summary: {total_value/total_invested/unrealized_pnl (null si multi-currency), "
+                      "total_value_by_currency/total_invested_by_currency/unrealized_pnl_by_currency (dicts {USD: …, CLP: …}), "
+                      "total_return_pct, active_positions, linked_accounts, last_snapshot_date}. "
+                      "trend: [{date, value}]. account_distribution: [{account_id, name, amount, percentage, currency}] "
+                      "(percentage normalizado por su currency). "
+                      "positions: PositionDerived computado on-the-fly desde transactions + asset_prices.")
     add_endpoint(doc, "GET", "/accounts", "🔒 Clerk",
                  returns="Lista de cuentas del usuario (más reciente primero)")
     add_endpoint(doc, "GET", "/positions", "🔒 Clerk",

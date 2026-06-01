@@ -2,7 +2,7 @@
 
 > ⚙️ Generado automáticamente desde `/openapi.json`. **NO editar a mano** — re-correr `scripts/generate_api_contract.py`.
 
-**Total endpoints**: 33  
+**Total endpoints**: 29  
 **Base URL local**: `http://localhost:8000` (sin `/api/v1`)  
 **Auth**: Bearer JWT Clerk en header `Authorization` (excepto rutas públicas)
 
@@ -17,10 +17,11 @@
 | **misc** | 2 (`/`, `/protected`) |
 | **onboarding** | 1 (`/risk_profile`) |
 | **pdf** | 3 (`/pdf/extract_mutual_funds`, `/pdf/extract_stocks_etf_1`, `/pdf/extract_stocks_etf_2`) |
+| **portfolio** | 1 (`/portfolio/dashboard`) |
 | **positions** | 1 (`/positions`) |
 | **preferences** | 2 (`/preferences`) |
 | **prices** | 2 (`/assets/{asset_id}/prices`) |
-| **profile** | 3 (`/profile`) |
+| **profile** | 2 (`/profile`) |
 | **transactions** | 2 (`/transactions`) |
 | **webhooks** | 1 (`/webhooks/clerk`) |
 
@@ -104,7 +105,6 @@ array of DividendRead:
     gross_amount: string | null
     tax_amount: string | null
     net_amount: string | null
-    created_at: string (date-time)
   }
 ```
 
@@ -275,7 +275,7 @@ array of AssetRead:
     symbol: string
     name: string
     kind: `AssetKind`
-    currency: string
+    currency?: string | null
     created_at: string (date-time)
   }
 ```
@@ -313,7 +313,7 @@ AssetRead: {
     symbol: string
     name: string
     kind: `AssetKind`
-    currency: string
+    currency?: string | null
     created_at: string (date-time)
   }
 ```
@@ -344,7 +344,7 @@ AssetDetailRead: {
     symbol: string
     name: string
     kind: `AssetKind`
-    currency: string
+    currency?: string | null
     created_at: string (date-time)
     prices?: array of `AssetPriceRead`
   }
@@ -379,7 +379,6 @@ array of DividendRead:
     gross_amount: string | null
     tax_amount: string | null
     net_amount: string | null
-    created_at: string (date-time)
   }
 ```
 
@@ -507,6 +506,26 @@ Upload Pdf Stocks Etf 2
 ```
 HTTPValidationError: {
     detail?: array of `ValidationError`
+  }
+```
+
+---
+
+
+## portfolio
+
+### `GET` `/portfolio/dashboard`
+
+Get Dashboard
+
+**Response 200** — Successful Response:
+
+```
+PortfolioDashboard: {
+    summary: `PortfolioSummary`
+    trend: array of `TrendPoint`
+    account_distribution: array of `AccountDistributionItem`
+    positions: array of `PositionDerived`
   }
 ```
 
@@ -733,25 +752,6 @@ HTTPValidationError: {
   }
 ```
 
-**Response 200** — Successful Response:
-
-```
-UserRead: {
-    clerk_id: string
-    email: string | null
-    created_at: string (date-time)
-    risk_profile: `RiskProfile` | null
-  }
-```
-
-**Response 422** — Validation Error:
-
-```
-HTTPValidationError: {
-    detail?: array of `ValidationError`
-  }
-```
-
 ---
 
 
@@ -821,6 +821,8 @@ HTTPValidationError: {
     detail?: array of `ValidationError`
   }
 ```
+
+---
 
 
 ## webhooks
