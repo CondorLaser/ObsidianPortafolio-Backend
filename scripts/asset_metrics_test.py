@@ -25,18 +25,24 @@ def metrics_asset():
     conn = psycopg2.connect(os.environ["DATABASE_TESTING"])
     cur = conn.cursor()
 
-    # Setup
+    # Setup — idempotente: borramos residuos de runs anteriores
+    # (no podemos usar ON CONFLICT porque assets no tiene unique constraint
+    # sobre symbol — el mismo symbol puede ser stock y fund a la vez).
+    cur.execute("""
+        DELETE FROM asset_daily_metrics
+        WHERE asset_id IN (SELECT id FROM assets WHERE symbol = '_INTTEST_METRICS_001')
+    """)
+    cur.execute("""
+        DELETE FROM asset_prices
+        WHERE asset_id IN (SELECT id FROM assets WHERE symbol = '_INTTEST_METRICS_001')
+    """)
+    cur.execute("DELETE FROM assets WHERE symbol = '_INTTEST_METRICS_001'")
     cur.execute("""
         INSERT INTO assets (symbol, name, kind, currency)
         VALUES ('_INTTEST_METRICS_001', '[_INTTEST_] Asset métricas', 'etf', 'USD')
-        ON CONFLICT (symbol, name) DO NOTHING
         RETURNING id
     """)
-    row = cur.fetchone()
-    if row is None:
-        cur.execute("SELECT id FROM assets WHERE symbol = '_INTTEST_METRICS_001'")
-        row = cur.fetchone()
-    asset_id = row[0]
+    asset_id = cur.fetchone()[0]
 
     # Precios diseñados para resultados deterministas:
     #   absolute_return  = (100 - 100) / 100 = 0.00%   (inicio == fin)
