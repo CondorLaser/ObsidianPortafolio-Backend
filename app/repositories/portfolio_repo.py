@@ -264,16 +264,16 @@ async def replace_positions(
 # Reads para GET /portfolio/dashboard
 # ────────────────────────────────────────────────────────────────────────
 async def get_dashboard_data(
-    session: AsyncSession, clerk_id: str
+    session: AsyncSession,
+    clerk_id: str,
+    trend_from: date_type | None = None,
+    trend_to: date_type | None = None,
 ) -> dict:
     """Lee portfolio_snapshots + accounts + (compute positions on-the-fly via
-    position_repo) y arma el shape del dashboard.
-
-    No hace cómputo de la serie (eso lo hizo el cron). Solo lee.
-    """
+    position_repo). trend_from/trend_to filtran la serie del trend."""
     from app.repositories import position_repo  # import local para evitar ciclo
 
-    # latest snapshot
+    # latest snapshot (independiente del rango de trend)
     snap_q = await session.execute(
         select(PortfolioSnapshot)
         .where(PortfolioSnapshot.user_id == clerk_id)
@@ -284,12 +284,17 @@ async def get_dashboard_data(
     latest = snaps[0] if snaps else None
     prev = snaps[1] if len(snaps) > 1 else None
 
-    # trend (todos los snapshots ordenados asc)
-    trend_q = await session.execute(
+    # trend (filtrado por rango opcional)
+    trend_stmt = (
         select(PortfolioSnapshot.date, PortfolioSnapshot.total_value)
         .where(PortfolioSnapshot.user_id == clerk_id)
         .order_by(PortfolioSnapshot.date.asc())
     )
+    if trend_from is not None:
+        trend_stmt = trend_stmt.where(PortfolioSnapshot.date >= trend_from)
+    if trend_to is not None:
+        trend_stmt = trend_stmt.where(PortfolioSnapshot.date <= trend_to)
+    trend_q = await session.execute(trend_stmt)
     trend = [
         {"date": r.date, "value": r.total_value or ZERO}
         for r in trend_q.all()

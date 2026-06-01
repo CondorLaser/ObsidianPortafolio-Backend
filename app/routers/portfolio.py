@@ -1,4 +1,6 @@
-from fastapi import APIRouter, Depends
+from datetime import date as date_type
+
+from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -20,8 +22,16 @@ class RebuildResult(BaseModel):
 async def get_dashboard(
     user: Profile = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
+    trend_from: date_type | None = Query(
+        None, description="Filtra el trend desde esta fecha inclusive (YYYY-MM-DD)."
+    ),
+    trend_to: date_type | None = Query(
+        None, description="Filtra el trend hasta esta fecha inclusive (YYYY-MM-DD)."
+    ),
 ):
-    return await portfolio_repo.get_dashboard_data(db, user.clerk_id)
+    return await portfolio_repo.get_dashboard_data(
+        db, user.clerk_id, trend_from=trend_from, trend_to=trend_to,
+    )
 
 
 @router.post("/rebuild", response_model=RebuildResult)

@@ -518,6 +518,11 @@ HTTPValidationError: {
 
 Get Dashboard
 
+**Query params**:
+
+- `trend_from` (string (date) | null, optional) — Filtra el trend desde esta fecha inclusive (YYYY-MM-DD).
+- `trend_to` (string (date) | null, optional) — Filtra el trend hasta esta fecha inclusive (YYYY-MM-DD).
+
 **Response 200** — Successful Response:
 
 ```
@@ -526,6 +531,14 @@ PortfolioDashboard: {
     trend: array of `TrendPoint`
     account_distribution: array of `AccountDistributionItem`
     positions: array of `PositionDerived`
+  }
+```
+
+**Response 422** — Validation Error:
+
+```
+HTTPValidationError: {
+    detail?: array of `ValidationError`
   }
 ```
 

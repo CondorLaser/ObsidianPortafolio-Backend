@@ -153,7 +153,8 @@ def main():
     doc.add_paragraph("Endpoints:")
     add_endpoint(doc, "GET", "/portfolio/dashboard", "🔒 Clerk",
                  returns="PortfolioDashboard: {summary, trend, account_distribution, positions}",
-                 note="summary: {total_value/total_invested/unrealized_pnl (null si multi-currency), "
+                 note="Query params opcionales: ?trend_from=YYYY-MM-DD&trend_to=YYYY-MM-DD para acotar la serie del trend. "
+                      "summary: {total_value/total_invested/unrealized_pnl (null si multi-currency), "
                       "total_value_by_currency/total_invested_by_currency/unrealized_pnl_by_currency (dicts {USD: …, CLP: …}), "
                       "total_return_pct, active_positions, linked_accounts, last_snapshot_date}. "
                       "trend: [{date, value}]. account_distribution: [{account_id, name, amount, percentage, currency}] "

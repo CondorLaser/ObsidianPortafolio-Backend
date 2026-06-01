@@ -910,6 +910,22 @@ async def test_e2e_pdf_to_dashboard(r: Report):
         r.fail("paso 4 — rebuild idempotente",
                f"first={n_snaps}+{n_pos}, second={n_snaps2}+{n_pos2}")
 
+    # ── 5. trend filtrado por rango (paginación) ──────────────────────
+    async with SessionLocal() as db:
+        dash_full = await portfolio_repo.get_dashboard_data(db, u_id)
+        # Pido solo los últimos 3 días → debería retornar 3 puntos
+        dash_partial = await portfolio_repo.get_dashboard_data(
+            db, u_id, trend_from=date.today() - timedelta(days=2),
+        )
+
+    if len(dash_full["trend"]) == 6 and len(dash_partial["trend"]) == 3:
+        r.ok(f"paso 5 — trend pagina: full={len(dash_full['trend'])}, "
+             f"trend_from D-2={len(dash_partial['trend'])}")
+    else:
+        r.fail("paso 5 — trend filtering",
+               f"full={len(dash_full['trend'])} (esperado 6), "
+               f"partial={len(dash_partial['trend'])} (esperado 3)")
+
 
 # ────────────────────────────────────────────────────────────────────────────
 # Cleanup
