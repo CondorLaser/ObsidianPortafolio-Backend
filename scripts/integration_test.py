@@ -772,20 +772,12 @@ async def test_portfolio_reconstruction(r: Report):
     else:
         r.fail("dashboard shape", f"keys: {list(dash.keys())}")
 
-    # DEBUG: listar accounts realmente en DB para este user
-    async with SessionLocal() as db:
-        debug_q = await db.execute(
-            select(Account.id, Account.name, Account.user_id).where(
-                Account.user_id == u_id
-            )
-        )
-        debug_accs = debug_q.all()
-        print(f"     [debug] accounts en DB para {u_id}: {len(debug_accs)}")
-        for a in debug_accs:
-            print(f"             - {a.name} (id={a.id})")
-
-    if dash["summary"]["active_positions"] == 1 and dash["summary"]["linked_accounts"] >= 1:
-        r.ok(f"dashboard.summary contadores OK (positions=1, accounts={dash['summary']['linked_accounts']})")
+    # NOTA: user_repo.get_or_create_by_clerk_id auto-crea "Mi cuenta principal"
+    # para users nuevos (JIT default account). Por eso linked_accounts=2
+    # (la default + _inttest_portfolio_acc creada por este test). active_positions
+    # es 1 porque solo agregamos tx a nuestra cuenta de test.
+    if dash["summary"]["active_positions"] == 1 and dash["summary"]["linked_accounts"] == 2:
+        r.ok("dashboard.summary contadores OK (positions=1 + default+test accounts=2)")
     else:
         r.fail(
             "dashboard.summary contadores",
