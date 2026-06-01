@@ -59,7 +59,8 @@ from app.repositories import asset_price_repo
 TEST_USER_PREFIX = "_inttest_"  # data de test se borra al final
 WEBHOOK_SECRET = "whsec_dGVzdC1zZWNyZXQtdmFsdWUtMTIzNDU2Nzg5MA=="  # debe matchear el del API
 
-# Endpoints esperados (33 totales tras PRs #12-15)
+# Endpoints esperados (28 totales — PR #20 borró 5 rutas: /profile/risk-profile,
+# /user/risk_profile {GET,PUT} y /user/accounts_names {GET,PUT})
 EXPECTED_ROUTES = {
     ("GET", "/"),
     ("GET", "/accounts"),
@@ -84,15 +85,10 @@ EXPECTED_ROUTES = {
     ("PUT", "/preferences"),
     ("GET", "/profile"),
     ("PUT", "/profile"),
-    ("PATCH", "/profile/risk-profile"),
     ("GET", "/protected"),
     ("POST", "/risk_profile"),
     ("GET", "/transactions"),
     ("POST", "/transactions"),
-    ("GET", "/user/accounts_names"),
-    ("PUT", "/user/accounts_names"),
-    ("GET", "/user/risk_profile"),
-    ("PUT", "/user/risk_profile"),
     ("POST", "/webhooks/clerk"),
 }
 
@@ -136,7 +132,7 @@ def section(title: str):
 # Fase 2 — API contract (HTTP)
 # ────────────────────────────────────────────────────────────────────────────
 def test_routes_registered(r: Report, client: httpx.Client):
-    section("Fase 2.1 — Rutas registradas (33 esperadas)")
+    section(f"Fase 2.1 — Rutas registradas ({len(EXPECTED_ROUTES)} esperadas)")
     try:
         spec = client.get("/openapi.json").json()
     except Exception as e:
@@ -151,7 +147,7 @@ def test_routes_registered(r: Report, client: httpx.Client):
     if extra:
         # Permitimos extras (no rompen)
         print(f"     (info: {len(extra)} rutas extra no esperadas: {extra})")
-    r.ok(f"33/33 rutas registradas exactamente como contrato")
+    r.ok(f"{len(EXPECTED_ROUTES)}/{len(EXPECTED_ROUTES)} rutas registradas exactamente como contrato")
 
 
 def test_public_endpoints(r: Report, client: httpx.Client):
@@ -172,7 +168,6 @@ def test_protected_endpoints_reject_401(r: Report, client: httpx.Client):
     protected = [
         ("GET", "/profile"),
         ("PUT", "/profile"),
-        ("PATCH", "/profile/risk-profile"),
         ("GET", "/accounts"),
         ("POST", "/accounts"),
         ("GET", "/accounts/00000000-0000-0000-0000-000000000000"),
@@ -191,10 +186,6 @@ def test_protected_endpoints_reject_401(r: Report, client: httpx.Client):
         ("GET", "/positions"),
         ("GET", "/preferences"),
         ("PUT", "/preferences"),
-        ("GET", "/user/risk_profile"),
-        ("PUT", "/user/risk_profile"),
-        ("GET", "/user/accounts_names"),
-        ("PUT", "/user/accounts_names"),
         ("POST", "/risk_profile"),
         ("POST", "/pdf/extract_stocks_etf_1"),
         ("POST", "/pdf/extract_mutual_funds"),
