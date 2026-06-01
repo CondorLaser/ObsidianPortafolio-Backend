@@ -1,0 +1,30 @@
+name: Portfolio Reconstruction
+
+on:
+  schedule:
+    # 06:00 UTC = 02:00 Chile (off-peak). Después de sync_stock_prices (05:00 UTC).
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+
+jobs:
+  reconstruct:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Instalar dependencias
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Reconstruir portfolio snapshots + positions
+        env:
+          # Neon develop. Formato asyncpg porque el repo usa SQLAlchemy async.
+          # El secret en GH debe estar en formato:
+          #   postgresql+asyncpg://neondb_owner:...@ep-...neon.tech/neondb
+          DATABASE_URL: ${{ secrets.DATABASE_URL_ASYNCPG }}
+        run: python -m scripts_ghactions.portfolio_reconstruction
