@@ -252,19 +252,6 @@ def main():
                  returns="{ clerk_id, email, created_at, risk_profile }")
     add_endpoint(doc, "PUT", "/profile", "🔒 Clerk",
                  returns="Update profile (hoy permite editar risk_profile). Body: { risk_profile }")
-    add_endpoint(doc, "PATCH", "/profile/risk-profile", "🔒 Clerk",
-                 returns="Canónico: actualiza solo el risk_profile. Body: { risk_profile }")
-    doc.add_paragraph()
-
-    doc.add_paragraph("Endpoints — User (aliases livianos):")
-    add_endpoint(doc, "GET", "/user/risk_profile", "🔒 Clerk",
-                 returns="{ risk_profile: 'moderate' | 'agressive' | 'conservative' | null }")
-    add_endpoint(doc, "PUT", "/user/risk_profile", "🔒 Clerk",
-                 returns="Alias de PATCH /profile/risk-profile. Body: { risk_profile }")
-    add_endpoint(doc, "GET", "/user/accounts_names", "🔒 Clerk",
-                 returns="[ { id, name }, ... ] — solo id+nombre de cada cuenta")
-    add_endpoint(doc, "PUT", "/user/accounts_names", "🔒 Clerk + ownership",
-                 returns="Rename batch. Body: [ { id, name }, ... ]")
     doc.add_paragraph()
 
     doc.add_paragraph("Endpoints — Preferences (umbrales de alertas):")
@@ -298,7 +285,7 @@ def main():
     ])
     doc.add_paragraph("Endpoints:")
     add_endpoint(doc, "POST", "/risk_profile", "🔒 Clerk",
-                 returns="{ risk_profile } — alias de PATCH /profile/risk-profile para uso en onboarding")
+                 returns="{ risk_profile } — setea risk_profile inicial del user en el onboarding")
     doc.add_paragraph()
 
     # ────────────────────────────────────────────────────────────

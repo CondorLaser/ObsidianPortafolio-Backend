@@ -12,8 +12,6 @@ router = APIRouter(prefix="/portfolio", tags=["portfolio"])
 
 
 class RebuildResult(BaseModel):
-    """Response de POST /portfolio/rebuild."""
-
     snapshots_persisted: int
     positions_persisted: int
 
@@ -23,17 +21,6 @@ async def get_dashboard(
     user: Profile = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Dashboard agregado del portafolio del usuario.
-
-    Combina:
-    - summary: último snapshot (total_value, invested, pnl, retorno vs anterior)
-    - trend: serie histórica completa (date + total_value)
-    - account_distribution: peso de cada cuenta sobre el total en el último snapshot
-    - positions: posiciones derivadas en runtime desde transactions + asset_prices
-
-    Si el user no tiene snapshots todavía (job no corrió), devuelve summary en
-    cero pero positions derivadas (que sí se calculan on-the-fly).
-    """
     return await portfolio_repo.get_dashboard_data(db, user.clerk_id)
 
 
@@ -42,15 +29,8 @@ async def rebuild_portfolio(
     user: Profile = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Recomputa snapshots + positions del user al instante.
-
-    Pensado para que el frontend lo dispare después de subir un PDF (cuando
-    se crearon transactions nuevas y el cron diario todavía no corrió).
-
-    Sync: espera ~3-7s en Neon para un user típico. Idempotente (DELETE +
-    INSERT scoped por user). Scoped al `clerk_id` del JWT — nunca toca otro
-    user.
-    """
+    # Pensado para llamar después de subir un PDF, antes del cron diario.
+    # Sync porque a 3-7s por user es aceptable y simplifica vs background tasks.
     snaps, pos = await portfolio_repo.compute_user_series(db, user.clerk_id)
     n_snaps = await portfolio_repo.replace_snapshots(db, user.clerk_id, snaps)
     n_pos = await portfolio_repo.replace_positions(db, user.clerk_id, pos)

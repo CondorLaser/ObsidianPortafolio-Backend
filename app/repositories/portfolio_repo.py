@@ -29,13 +29,11 @@ from collections import defaultdict
 from dataclasses import dataclass
 from datetime import date as date_type, datetime, timedelta, timezone
 from decimal import Decimal
-from typing import Iterable
 
-from sqlalchemy import delete, insert, select, text
+from sqlalchemy import delete, insert, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.account import Account
-from app.models.asset import Asset
 from app.models.asset_price import AssetPrice
 from app.models.portfolio_snapshot import PortfolioSnapshot
 from app.models.position import Position
@@ -59,10 +57,7 @@ class _PairState:
 
     @property
     def avg_cost(self) -> Decimal | None:
-        if self.qty > 0:
-            # avg_cost ≈ invested / qty siempre que qty > 0
-            return self.invested / self.qty if self.qty != 0 else None
-        return None
+        return self.invested / self.qty if self.qty > 0 else None
 
 
 async def compute_user_series(
@@ -130,7 +125,7 @@ async def compute_user_series(
     start_date = txs[0].executed_at.date()
     end_date = datetime.now(tz=timezone.utc).date()
 
-    tx_idx = 0  # próximo tx a procesar
+    tx_idx = 0
     snapshots: list[dict] = []
 
     cur_date = start_date
@@ -157,12 +152,12 @@ async def compute_user_series(
                 st.qty -= qty
                 st.total_fees += fee
             elif tx.kind == TransactionKind.dividend:
-                # qty del registro de dividend representa monto del dividendo
-                # (el frontend / Eduardo modeló dividends con kind=dividend y
-                # quantity = monto cash; no afecta posición)
+                # En este schema, tx.quantity con kind=dividend representa el
+                # monto cash del dividendo (no unidades); no toca quantity.
                 st.total_dividends += qty
             elif tx.kind == TransactionKind.fee:
-                st.total_fees += fee or qty
+                # Modelado dual: kind=fee usa fee si está, si no toma qty (legacy).
+                st.total_fees += fee if fee > 0 else qty
             # deposit/withdrawal no afectan posiciones por asset
             st.last_tx_at = tx.executed_at
             tx_idx += 1
@@ -196,8 +191,10 @@ async def compute_user_series(
                 "total_invested": total_invested,
                 "unrealized_pnl": total_value - total_invested,
                 "realized_pnl": sum((s.realized_pnl for s in pair_state.values()), ZERO),
-                "breakdown_by_currency": {k: float(v) for k, v in per_currency.items()},
-                "breakdown_by_account": {k: float(v) for k, v in per_account.items()},
+                # JSONB acepta strings y los Decimals los preservamos como tal
+                # (evita pérdida de precisión por float).
+                "breakdown_by_currency": {k: str(v) for k, v in per_currency.items()},
+                "breakdown_by_account": {k: str(v) for k, v in per_account.items()},
             }
         )
 
@@ -360,7 +357,11 @@ async def get_dashboard_data(
                 }
             )
 
-    # positions derivadas (mismo cálculo que GET /positions, reusa el SQL)
+    # TODO: el cron ahora materializa la tabla `positions`, pero acá seguimos
+    # recomputando on-the-fly via position_repo (que hace su propio SQL).
+    # Conviene leer de `positions` directamente y joinear con `assets` para
+    # symbol/name + último asset_price para market_value. Se mantiene como
+    # estaba para no romper el shape de PositionDerived.
     positions = await position_repo.list_for_user(session, clerk_id)
 
     # summary: si hay UNA sola currency llenamos los Decimal escalares;
