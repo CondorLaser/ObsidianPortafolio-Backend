@@ -210,3 +210,9 @@ __marimo__/
 
 # PDFs personales para testing E2E (no commitear data financiera)
 docs/pdfs/
+
+# macOS
+.DS_Store
+
+# Microsoft Office lock files (mientras un .docx está abierto)
+~$*
