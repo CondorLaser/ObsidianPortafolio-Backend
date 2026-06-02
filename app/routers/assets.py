@@ -2,6 +2,7 @@ import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import text
 
 from app.core.auth import get_current_user
 from app.core.db import get_db
@@ -49,6 +50,37 @@ async def get_asset(
         raise HTTPException(status_code=404, detail="Asset not found")
     return asset
 
+# Nota Eduardo: Yo prefiero hacer consultas SQL manuales, personalmente lo encuentro más cómodo
+@router.get("/{asset_id}/metrics")
+async def get_metrics(
+    asset_id: uuid.UUID,
+    _user: Profile = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    daily_result = await db.execute(
+        text("""
+            SELECT *
+            FROM asset_daily_metrics
+            WHERE asset_id = :asset_id
+            ORDER BY date DESC
+        """),
+        {"asset_id": str(asset_id)},
+    )
+
+    monthly_result = await db.execute(
+        text("""
+            SELECT *
+            FROM asset_monthly_metrics
+            WHERE asset_id = :asset_id
+            ORDER BY date DESC
+        """),
+        {"asset_id": str(asset_id)},
+    )
+
+    return {
+        "daily": [dict(row._mapping) for row in daily_result],
+        "monthly": [dict(row._mapping) for row in monthly_result],
+    }
 
 @router.post("", response_model=AssetRead, status_code=201)
 async def create_asset(

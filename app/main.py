@@ -20,6 +20,7 @@ from app.routers import (
     prices,
     profile,
     transactions,
+    portfolio,
     webhooks,
 )
 
@@ -63,4 +64,5 @@ app.include_router(portfolio.router)
 app.include_router(dividends.router)
 app.include_router(pdf.router)
 app.include_router(heartbeat.router)
+app.include_router(portfolio.router)
 app.include_router(webhooks.router)

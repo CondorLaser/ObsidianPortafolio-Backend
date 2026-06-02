@@ -2,6 +2,7 @@ import uuid
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import text
 
 from app.core.auth import get_current_user
 from app.core.db import get_db
@@ -27,20 +28,36 @@ async def list_accounts(
 # Las rutas nested (/accounts/<sub>/{id}) van ANTES de /{account_id} para que
 # FastAPI no las matchee con el path catch-all del detail.
 
-@router.get("/metrics/{account_id}", response_model=AccountMetricsRead)
-async def get_account_metrics(
+@router.get("/{account_id}/metrics")
+async def get_metrics(
     account_id: uuid.UUID,
-    user: Profile = Depends(get_current_user),
+    _user: Profile = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Métricas (daily + monthly) de una cuenta. Tablas existen pero hoy están
-    vacías; el cómputo es trabajo pendiente."""
-    if await account_repo.get_for_user(db, user.clerk_id, account_id) is None:
-        raise HTTPException(status_code=404, detail="Account not found")
-    daily = await account_metrics_repo.list_daily_for_account(db, account_id)
-    monthly = await account_metrics_repo.list_monthly_for_account(db, account_id)
-    return AccountMetricsRead(daily=daily, monthly=monthly)
+    daily_result = await db.execute(
+        text("""
+            SELECT *
+            FROM account_daily_metrics
+            WHERE account_id = :account_id
+            ORDER BY date DESC
+        """),
+        {"account_id": str(account_id)},
+    )
 
+    monthly_result = await db.execute(
+        text("""
+            SELECT *
+            FROM account_monthly_metrics
+            WHERE account_id = :account_id
+            ORDER BY date DESC
+        """),
+        {"account_id": str(account_id)},
+    )
+
+    return {
+        "daily": [dict(row._mapping) for row in daily_result],
+        "monthly": [dict(row._mapping) for row in monthly_result],
+    }
 
 @router.get("/positions/{account_id}", response_model=list[PositionRead])
 async def get_account_positions(
