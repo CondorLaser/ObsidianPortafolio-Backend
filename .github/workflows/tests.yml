@@ -1,0 +1,136 @@
+name: Backend Tests
+
+on:
+  pull_request:
+    branches: [develop, main]
+  push:
+    branches: [develop]
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: Integration suite + coverage (Postgres efímero)
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: orion
+          POSTGRES_PASSWORD: orion
+          POSTGRES_DB: orion_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U orion"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      APP_ENV: dev
+      DATABASE_URL_DEV: postgresql+asyncpg://orion:orion@localhost:5432/orion_test
+      DATABASE_TESTING: postgresql://orion:orion@localhost:5432/orion_test
+      CLERK_WEBHOOK_SECRET: whsec_dGVzdC1zZWNyZXQtdmFsdWUtMTIzNDU2Nzg5MA==
+      CLERK_ISSUER: https://worthy-jackal-80.clerk.accounts.dev
+      ALLOWED_ORIGINS: http://localhost:3000
+      # Habilita modo paralelo (coverage combina los .coverage.* al final)
+      COVERAGE_PROCESS_START: ${{ github.workspace }}/.coveragerc
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+
+      - name: Instalar dependencias
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Config coverage (parallel mode)
+        run: |
+          cat > .coveragerc <<'EOF'
+          [run]
+          source = app
+          parallel = True
+          concurrency = thread
+          omit =
+              app/__init__.py
+              app/main.py
+
+          [report]
+          show_missing = True
+          skip_empty = True
+          precision = 1
+          EOF
+
+      - name: Lint (errores de sintaxis críticos)
+        run: flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+
+      - name: Aplicar migraciones Alembic
+        run: alembic upgrade head
+
+      - name: Levantar uvicorn BAJO coverage
+        run: |
+          nohup coverage run -m uvicorn app.main:app --host 127.0.0.1 --port 8000 \
+            > /tmp/uvicorn.log 2>&1 &
+          echo "UVICORN_PID=$!" >> $GITHUB_ENV
+
+      - name: Esperar a que la API esté lista
+        run: |
+          for i in $(seq 1 60); do
+            if curl -sf http://127.0.0.1:8000/ >/dev/null; then
+              echo "API up tras ${i}s"; exit 0
+            fi
+            sleep 1
+          done
+          echo "TIMEOUT esperando API"
+          tail -80 /tmp/uvicorn.log
+          exit 1
+
+      - name: Fases 2-5 — integration_test BAJO coverage
+        run: coverage run -m scripts.integration_test --label=ci
+
+      - name: Apagar uvicorn graceful (flush coverage)
+        run: |
+          kill -INT $UVICORN_PID 2>/dev/null || true
+          for i in $(seq 1 15); do
+            kill -0 $UVICORN_PID 2>/dev/null || break
+            sleep 1
+          done
+          # Forzar si todavía vive
+          kill -9 $UVICORN_PID 2>/dev/null || true
+
+      - name: Combinar coverage de ambos procesos (test runner + uvicorn)
+        run: |
+          coverage combine
+          coverage report -m --skip-covered | tee /tmp/coverage.txt
+          echo
+          echo "═══════════════ TOTAL ═══════════════"
+          coverage report --format=total
+
+      - name: Generar HTML report
+        run: coverage html -d htmlcov
+
+      - name: Subir HTML coverage como artifact (descargable desde GH Actions)
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-html-report
+          path: htmlcov/
+          retention-days: 30
+
+      - name: Subir reporte texto (para PR comments / referencia rápida)
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-text-summary
+          path: /tmp/coverage.txt
+          retention-days: 30
+
+      - name: Logs uvicorn (si falló algún test)
+        if: failure()
+        run: tail -200 /tmp/uvicorn.log

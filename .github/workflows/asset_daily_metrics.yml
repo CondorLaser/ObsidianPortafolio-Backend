@@ -1,12 +1,12 @@
-name: Sync Stock Prices
+name: Asset Daily Metrics
 
 
 on:
-  #push:
-  #  branches:
-  #    - feat/ingesta_fintual #solo para testeo
+  push:
+    branches:
+      - feat/metrics_1 #solo para testeo
   schedule:
-    - cron: "0 5 * * *"  # todos los días en la noche
+    - cron: "0 6 1 * *"  # primer día del mes :p
   workflow_dispatch:      
 
 jobs:
@@ -26,5 +26,4 @@ jobs:
       - name: Correr script
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          TWELVEDATA_API_KEY: ${{ secrets.TWELVEDATA_API_KEY }}
-        run: python sync_stock_prices.py
+        run: python scripts_ghactions/assets_daily_metrics.py

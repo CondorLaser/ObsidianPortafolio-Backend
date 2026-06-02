@@ -14,6 +14,7 @@ from app.routers import (
     heartbeat,
     onboarding,
     pdf,
+    portfolio,
     positions,
     preferences,
     prices,
@@ -59,6 +60,7 @@ app.include_router(assets.router)
 app.include_router(prices.router)
 app.include_router(transactions.router)
 app.include_router(positions.router)
+app.include_router(portfolio.router)
 app.include_router(dividends.router)
 app.include_router(pdf.router)
 app.include_router(heartbeat.router)
