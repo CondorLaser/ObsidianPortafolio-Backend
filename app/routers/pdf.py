@@ -22,6 +22,8 @@ from scripts.processing_pdf import (
     extract_stocks_etf_1,
     extract_stocks_etf_2,
 )
+from app.repositories.portfolio_repo import reconstruct_user_portfolio
+
 
 router = APIRouter(prefix="/pdf", tags=["pdf"])
 
@@ -42,12 +44,37 @@ async def upload_pdf_stocks_etf_1(
 ):
     await _require_account(db, user, account_id)
     content = await file.read()
+    
     try:
         with pdfplumber.open(io.BytesIO(content)) as pdf:
             data = extract_stocks_etf_1(pdf)
     except Exception:
         raise HTTPException(status_code=400, detail="Error al analizar el archivo, archivo no válido")
-    return await pdf_repo.stocks_etf_1(db, user.clerk_id, data, account_id)
+    # Generar las Transactions y Dividends
+    dict_processed_data = await pdf_repo.stocks_etf_1(db, user.clerk_id, data, account_id)
+    # Reconstruir portafolio en base a eso (positions + snapshot portafolio)
+    try:
+        n_snapshots, n_positions = await reconstruct_user_portfolio(db, user.clerk_id)
+
+        print({"reconstruction_details": {
+                "snapshots_updated": n_snapshots,
+                "positions_updated": n_positions
+            },
+            "processed_data": dict_processed_data})
+        
+        return {
+            "message": "Certificado de Transacciones procesado, transacciones y portafolio reconstruido con éxito",
+            "reconstruction_details": {
+                "snapshots_updated": n_snapshots,
+                "positions_updated": n_positions
+            },
+            "processed_data": dict_processed_data
+        }
+    except Exception as e:
+        return {
+            "message": "Certificado procesado, pero la reconstrucción inmediata falló. Se ejecutará durante la noche",
+            "error": str(e)
+        }
 
 
 @router.post("/extract_mutual_funds")
@@ -64,7 +91,24 @@ async def upload_pdf_mutual_funds(
             data = extract_mutual_funds(pdf)
     except Exception:
         raise HTTPException(status_code=400, detail="Error al analizar el archivo, archivo no válido")
-    return await pdf_repo.save_mutual_funds(db, user.clerk_id, data, account_id)
+    # Generar las Transactions y Dividends
+    await pdf_repo.save_mutual_funds(db, user.clerk_id, data, account_id)
+    await pdf_repo.stocks_etf_1(db, user.clerk_id, data, account_id)
+    # Reconstruir portafolio en base a eso (positions + snapshot portafolio)
+    try:
+        n_snapshots, n_positions = await reconstruct_user_portfolio(db, user.clerk_id)
+        return {
+            "message": "Certificado de Transacciones procesado, transacciones y portafolio reconstruido con éxito",
+            "reconstruction_details": {
+                "snapshots_updated": n_snapshots,
+                "positions_updated": n_positions
+            }
+        }
+    except Exception as e:
+        return {
+            "message": "Certificado procesado, pero la reconstrucción inmediata falló. Se ejecutará durante la noche",
+            "error": str(e)
+        }
 
 
 @router.post("/extract_stocks_etf_2")

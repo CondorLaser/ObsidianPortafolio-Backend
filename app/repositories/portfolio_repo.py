@@ -423,3 +423,28 @@ async def list_users_with_transactions(session: AsyncSession) -> list[str]:
         .distinct()
     )
     return [r[0] for r in q.all()]
+
+
+
+
+# Función para reconstruir portafolio (snapshot + positions) de 1 usuario
+# Reutiliza funciones implementadas anteriormente
+# TODO: Evaluar si es muy pesado de ejecutar, en caso de que sí considerar plantear: 
+# a) Límites de cuántos datos considera
+# b) Sistema alterno de reconstrucción menos pesado (update datos en vez de eliminar)??
+async def reconstruct_user_portfolio(session: AsyncSession, clerk_id: str) -> tuple[int, int]:
+    """
+    Reconstruye el portafolio (snapshots y posiciones) para usuario dado usando las funciones existentes
+    Devuelve una tupla (n_snapshots, n_positions) con la cantidad de registros insertados
+    """
+    # Calcular la serie temporal completa en memoria para este usuario específico
+    snapshots, positions = await compute_user_series(session, clerk_id)
+    # Si el usuario no tiene transacciones, evitamos operaciones innecesarias
+    if not snapshots and not positions:
+        return 0, 0
+    # Reemplazar de forma idempotente los snapshots
+    n_snaps = await replace_snapshots(session, clerk_id, snapshots)
+    # Reemplazar las posiciones actuales
+    n_pos = await replace_positions(session, clerk_id, positions)
+    
+    return n_snaps, n_pos
