@@ -1,6 +1,6 @@
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.auth import get_current_user
@@ -20,8 +20,10 @@ router = APIRouter(prefix="/accounts", tags=["accounts"])
 async def list_accounts(
     user: Profile = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
+    skip: int = Query(0, ge=0, description="Registros a saltar"),
+    limit: int = Query(10, ge=1, le=100, description="Máx. registros retornar"),
 ):
-    return await account_repo.list_for_user(db, user.clerk_id)
+    return await account_repo.list_for_user(db, user.clerk_id, skip=skip, limit=limit)
 
 
 # Las rutas nested (/accounts/<sub>/{id}) van ANTES de /{account_id} para que
@@ -59,8 +61,10 @@ async def get_account_transactions(
     account_id: uuid.UUID,
     user: Profile = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
+    skip: int = Query(0, ge=0, description="Registros a saltar"),
+    limit: int = Query(10, ge=1, le=100, description="Máx. registros retornar"),
 ):
-    account = await account_repo.get_for_user_with_detail(db, user.clerk_id, account_id)
+    account = await account_repo.get_for_user_with_detail(db, user.clerk_id, account_id, skip=skip, limit=limit)
     if account is None:
         raise HTTPException(status_code=404, detail="Account not found")
     return account.transactions
@@ -71,8 +75,10 @@ async def get_account_dividends(
     account_id: uuid.UUID,
     user: Profile = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
+    skip: int = Query(0, ge=0, description="Registros a saltar"),
+    limit: int = Query(10, ge=1, le=100, description="Máx. registros retornar"),
 ):
-    account = await account_repo.get_for_user_with_detail(db, user.clerk_id, account_id)
+    account = await account_repo.get_for_user_with_detail(db, user.clerk_id, account_id, skip=skip, limit=limit)
     if account is None:
         raise HTTPException(status_code=404, detail="Account not found")
     return account.dividends

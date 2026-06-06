@@ -8,12 +8,18 @@ from app.models.account import Account
 from app.schemas.account import AccountCreate
 
 
-async def list_for_user(session: AsyncSession, clerk_id: str) -> list[Account]:
+async def list_for_user(
+    session: AsyncSession, clerk_id: str,
+    skip: int = 0,
+    limit: int = 10,
+) -> list[Account]:
     """ORDER BY created_at DESC — matchea contrato Eduardo (más reciente primero)."""
     result = await session.execute(
         select(Account)
         .where(Account.user_id == clerk_id)
         .order_by(Account.created_at.desc())
+        .offset(skip)
+        .limit(limit)
     )
     return list(result.scalars().all())
 

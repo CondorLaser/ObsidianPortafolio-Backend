@@ -1,5 +1,6 @@
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.models.account import Account
 from app.models.transaction import Transaction
@@ -7,13 +8,18 @@ from app.schemas.transaction import TransactionCreate
 
 
 async def list_for_user(
-    session: AsyncSession, clerk_id: str
+    session: AsyncSession, clerk_id: str,
+    skip: int = 0,
+    limit: int = 10,
 ) -> list[Transaction]:
     stmt = (
         select(Transaction)
         .join(Account, Account.id == Transaction.account_id)
         .where(Account.user_id == clerk_id)
+        .options(selectinload(Transaction.asset))
         .order_by(Transaction.executed_at.desc())
+        .offset(skip)
+        .limit(limit)
     )
     result = await session.execute(stmt)
     return list(result.scalars().all())
