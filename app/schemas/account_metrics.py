@@ -31,8 +31,6 @@ class AccountMonthlyMetricRead(BaseModel):
 
 
 class AccountMetricsRead(BaseModel):
-    """Combinado: daily + monthly para un account. Eduardo no implementó la
-    lógica de cómputo; las arrays vienen vacías hasta que se popule."""
-
-    daily: list[AccountDailyMetricRead] = []
-    monthly: list[AccountMonthlyMetricRead] = []
+    # Se modifica enfoque de lista a solo 1, para devolver solo la última (+ relevante)
+    daily: AccountDailyMetricRead | None = None
+    monthly: AccountMonthlyMetricRead | None = None
