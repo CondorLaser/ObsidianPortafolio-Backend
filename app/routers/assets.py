@@ -20,7 +20,7 @@ async def list_assets(
     currency: str | None = Query(default=None, min_length=3, max_length=3),
     search: str | None = Query(default=None, description="ilike sobre symbol o name"),
     limit: int = Query(default=100, ge=1, le=500),
-    offset: int = Query(default=0, ge=0),
+    skip: int = Query(default=0, ge=0),
     _user: Profile = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -33,7 +33,7 @@ async def list_assets(
         currency=currency,
         search=search,
         limit=limit,
-        offset=offset,
+        skip=skip,
     )
 
 

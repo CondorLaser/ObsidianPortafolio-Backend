@@ -5,6 +5,7 @@ from decimal import Decimal
 from pydantic import BaseModel, ConfigDict
 
 from app.models.transaction import TransactionKind
+from app.schemas.asset import AssetRead 
 
 
 class TransactionBase(BaseModel):
@@ -26,3 +27,4 @@ class TransactionRead(TransactionBase):
 
     id: uuid.UUID
     created_at: datetime
+    asset: AssetRead

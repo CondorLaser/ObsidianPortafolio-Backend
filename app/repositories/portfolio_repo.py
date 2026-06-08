@@ -263,6 +263,8 @@ async def replace_positions(
 # ────────────────────────────────────────────────────────────────────────
 # Reads para GET /portfolio/dashboard
 # ────────────────────────────────────────────────────────────────────────
+# TODO: Plantear eliminarlo para solo usar la versión summary, trend + postions
+# (por un tema de ser menos demandante)
 async def get_dashboard_data(
     session: AsyncSession,
     clerk_id: str,
@@ -413,6 +415,152 @@ async def get_dashboard_data(
     }
 
 
+# ----------------------------------------------
+# Para GET /portfolio/summary
+# ----------------------------------------------
+# Retorna solo summary + account distibution
+async def get_portfolio_summary_data(session: AsyncSession, clerk_id: str) -> dict:
+    # Obtener el último snapshot guardado en la base de datos
+    latest_snap_q = await session.execute(
+        select(PortfolioSnapshot)
+        .where(PortfolioSnapshot.user_id == clerk_id)
+        .order_by(PortfolioSnapshot.date.desc())
+        .limit(1)
+    )
+    latest: PortfolioSnapshot | None = latest_snap_q.scalar_one_or_none()
+
+    # Obtener el snapshot inmediatamente previo para calcular el retorno diario
+    prev: PortfolioSnapshot | None = None
+    if latest:
+        prev_snap_q = await session.execute(
+            select(PortfolioSnapshot)
+            .where(PortfolioSnapshot.user_id == clerk_id, PortfolioSnapshot.date < latest.date)
+            .order_by(PortfolioSnapshot.date.desc())
+            .limit(1)
+        )
+        prev = prev_snap_q.scalar_one_or_none()
+
+    # Obtener metadatos de las cuentas para armar account distribution
+    accounts_q = await session.execute(
+        select(Account).where(Account.user_id == clerk_id)
+    )
+    accounts_meta = accounts_q.scalars().all()
+    account_names = {a.id: a.name for a in accounts_meta}
+    account_currencies = {a.id: a.currency for a in accounts_meta}
+
+    # Obtener las posiciones vigentes del usuario
+    pos_q = await session.execute(
+        select(Position)
+        .join(Account, Account.id == Position.account_id)
+        .where(Account.user_id == clerk_id)
+    )
+    positions = pos_q.scalars().all()
+
+    # Calcular la distribución
+    dist_by_acc: dict[uuid.UUID, Decimal] = {}
+    if latest and latest.breakdown_by_account:
+        for acc_id_str, val in latest.breakdown_by_account.items():
+            try:
+                dist_by_acc[uuid.UUID(acc_id_str)] = Decimal(str(val))
+            except ValueError:
+                continue
+    total_val_snapshots = sum(dist_by_acc.values()) if dist_by_acc else Decimal("0")
+
+    distribution = []
+    for acc_id, amt in dist_by_acc.items():
+        pct = (amt / total_val_snapshots) if total_val_snapshots > 0 else Decimal("0")
+        distribution.append({
+            "account_id": acc_id,
+            "name": account_names.get(acc_id, f"Cuenta {str(acc_id)[:6]}"),
+            "amount": amt,
+            "percentage": pct,
+            "currency": account_currencies.get(acc_id, "USD")
+        })
+
+    # Procesar inversiones, totales y no realizados por moneda
+    total_value_by_currency = {}
+    total_invested_by_currency = {}
+    unrealized_pnl_by_currency = {}
+
+    if latest:
+        if latest.breakdown_by_currency:
+            for cur, val in latest.breakdown_by_currency.items():
+                total_value_by_currency[cur] = Decimal(str(val))
+        
+        # Calcular los invertidos a partir de las posiciones materializadas
+        for p in positions:
+            cur = account_currencies.get(p.account_id, "USD")
+            
+            # SOLUCIÓN: Calcular invested = quantity * avg_cost (manejando Nones)
+            qty = p.quantity if p.quantity is not None else Decimal("0")
+            cost = p.avg_cost if p.avg_cost is not None else Decimal("0")
+            p_invested = qty * cost
+            
+            total_invested_by_currency[cur] = total_invested_by_currency.get(cur, Decimal("0")) + p_invested
+
+        # Calcular Unrealized PnL por moneda
+        for cur, v_val in total_value_by_currency.items():
+            i_val = total_invested_by_currency.get(cur, Decimal("0"))
+            unrealized_pnl_by_currency[cur] = v_val - i_val
+
+    # Lógica multi-moneda (si tiene 1 sola moneda, se exponen escalares limpios = valor unificado)
+    unique_currencies = set(account_currencies.values())
+    is_single_currency = len(unique_currencies) == 1
+    main_currency = list(unique_currencies)[0] if is_single_currency else None
+
+    scalar_value = total_value_by_currency.get(main_currency) if is_single_currency else None
+    scalar_invested = total_invested_by_currency.get(main_currency) if is_single_currency else None
+    scalar_unrealized = unrealized_pnl_by_currency.get(main_currency) if is_single_currency else None
+
+    return_pct = None
+    if is_single_currency and latest and prev and latest.total_value and prev.total_value:
+        prev_v = Decimal(str(prev.total_value))
+        if prev_v > 0:
+            return_pct = (Decimal(str(latest.total_value)) - prev_v) / prev_v
+
+    summary = {
+        "total_value": scalar_value,
+        "total_invested": scalar_invested,
+        "unrealized_pnl": scalar_unrealized,
+        "total_value_by_currency": total_value_by_currency,
+        "total_invested_by_currency": total_invested_by_currency,
+        "unrealized_pnl_by_currency": unrealized_pnl_by_currency,
+        "total_return_pct": return_pct,
+        "active_positions": len(positions),
+        "linked_accounts": len(accounts_meta),
+        "last_snapshot_date": latest.date if latest else None,
+    }
+
+    return {
+        "summary": summary,
+        "account_distribution": distribution
+    }
+
+# -------------------------------------
+# Para GET /portfolio/trend
+# -------------------------------------
+# Retorna serie temporal (trend) del valor total del portafolio
+# Cuenta con filtro de fechas
+async def get_portfolio_trend_data(
+    session: AsyncSession, 
+    clerk_id: str, 
+    trend_from: date_type | None = None, 
+    trend_to: date_type | None = None
+) -> list[dict]:
+    stmt = select(PortfolioSnapshot.date, PortfolioSnapshot.total_value).where(
+        PortfolioSnapshot.user_id == clerk_id
+    )
+    if trend_from:
+        stmt = stmt.where(PortfolioSnapshot.date >= trend_from)
+    if trend_to:
+        stmt = stmt.where(PortfolioSnapshot.date <= trend_to)
+        
+    stmt = stmt.order_by(PortfolioSnapshot.date.asc())
+    
+    q = await session.execute(stmt)
+    return [{"date": row.date, "value": Decimal(str(row.total_value or 0))} for row in q.all()]
+
+
 async def list_users_with_transactions(session: AsyncSession) -> list[str]:
     """Devuelve clerk_ids de usuarios que tienen al menos 1 transaction.
     Usado por el cron para iterar solo los users relevantes."""
@@ -423,3 +571,28 @@ async def list_users_with_transactions(session: AsyncSession) -> list[str]:
         .distinct()
     )
     return [r[0] for r in q.all()]
+
+
+
+
+# Función para reconstruir portafolio (snapshot + positions) de 1 usuario
+# Reutiliza funciones implementadas anteriormente
+# TODO: Evaluar si es muy pesado de ejecutar, en caso de que sí considerar plantear: 
+# a) Límites de cuántos datos considera
+# b) Sistema alterno de reconstrucción menos pesado (update datos en vez de eliminar)??
+async def reconstruct_user_portfolio(session: AsyncSession, clerk_id: str) -> tuple[int, int]:
+    """
+    Reconstruye el portafolio (snapshots y posiciones) para usuario dado usando las funciones existentes
+    Devuelve una tupla (n_snapshots, n_positions) con la cantidad de registros insertados
+    """
+    # Calcular la serie temporal completa en memoria para este usuario específico
+    snapshots, positions = await compute_user_series(session, clerk_id)
+    # Si el usuario no tiene transacciones, evitamos operaciones innecesarias
+    if not snapshots and not positions:
+        return 0, 0
+    # Reemplazar de forma idempotente los snapshots
+    n_snaps = await replace_snapshots(session, clerk_id, snapshots)
+    # Reemplazar las posiciones actuales
+    n_pos = await replace_positions(session, clerk_id, positions)
+    
+    return n_snaps, n_pos

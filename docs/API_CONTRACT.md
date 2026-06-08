@@ -2,8 +2,8 @@
 
 > ⚙️ Generado automáticamente desde `/openapi.json`. **NO editar a mano** — re-correr `scripts/generate_api_contract.py`.
 
-**Total endpoints**: 30  
-**Base URL local**: `http://localhost:8001` (sin `/api/v1`)  
+**Total endpoints**: 32  
+**Base URL local**: `http://localhost:8000` (sin `/api/v1`)  
 **Auth**: Bearer JWT Clerk en header `Authorization` (excepto rutas públicas)
 
 ## Resumen
@@ -17,7 +17,7 @@
 | **misc** | 2 (`/`, `/protected`) |
 | **onboarding** | 1 (`/risk_profile`) |
 | **pdf** | 3 (`/pdf/extract_mutual_funds`, `/pdf/extract_stocks_etf_1`, `/pdf/extract_stocks_etf_2`) |
-| **portfolio** | 2 (`/portfolio/dashboard`, `/portfolio/rebuild`) |
+| **portfolio** | 4 (`/portfolio/dashboard`, `/portfolio/rebuild`, `/portfolio/summary`, `/portfolio/trend`) |
 | **positions** | 1 (`/positions`) |
 | **preferences** | 2 (`/preferences`) |
 | **prices** | 2 (`/assets/{asset_id}/prices`) |
@@ -32,6 +32,11 @@
 
 List Accounts
 
+**Query params**:
+
+- `skip` (integer, optional) — Registros a saltar
+- `limit` (integer, optional) — Máx. registros retornar
+
 **Response 200** — Successful Response:
 
 ```
@@ -43,6 +48,14 @@ array of AccountRead:
     currency?: string
     created_at: string (date-time)
     user_id: string
+  }
+```
+
+**Response 422** — Validation Error:
+
+```
+HTTPValidationError: {
+    detail?: array of `ValidationError`
   }
 ```
 
@@ -93,6 +106,11 @@ Get Account Dividends
 
 - `account_id`: string (uuid)
 
+**Query params**:
+
+- `skip` (integer, optional) — Registros a saltar
+- `limit` (integer, optional) — Máx. registros retornar
+
 **Response 200** — Successful Response:
 
 ```
@@ -105,6 +123,7 @@ array of DividendRead:
     gross_amount: string | null
     tax_amount: string | null
     net_amount: string | null
+    asset: `AssetRead`
   }
 ```
 
@@ -130,8 +149,8 @@ Get Account Metrics
 
 ```
 AccountMetricsRead: {
-    daily?: array of `AccountDailyMetricRead`
-    monthly?: array of `AccountMonthlyMetricRead`
+    daily?: `AccountDailyMetricRead` | null
+    monthly?: `AccountMonthlyMetricRead` | null
   }
 ```
 
@@ -152,6 +171,11 @@ Get Account Positions
 **Path params**:
 
 - `account_id`: string (uuid)
+
+**Query params**:
+
+- `skip` (integer, optional) — Registros a saltar
+- `limit` (integer, optional) — Máx. registros retornar
 
 **Response 200** — Successful Response:
 
@@ -189,6 +213,11 @@ Get Account Transactions
 
 - `account_id`: string (uuid)
 
+**Query params**:
+
+- `skip` (integer, optional) — Registros a saltar
+- `limit` (integer, optional) — Máx. registros retornar
+
 **Response 200** — Successful Response:
 
 ```
@@ -203,6 +232,7 @@ array of TransactionRead:
     executed_at: string (date-time)
     id: string (uuid)
     created_at: string (date-time)
+    asset: `AssetRead`
   }
 ```
 
@@ -227,16 +257,13 @@ Get Account
 **Response 200** — Successful Response:
 
 ```
-AccountDetailRead: {
+AccountRead: {
     id: string (uuid)
     name: string
     broker?: string | null
     currency?: string
     created_at: string (date-time)
     user_id: string
-    dividends?: array of `DividendRead`
-    positions?: array of `PositionRead`
-    transactions?: array of `TransactionRead`
   }
 ```
 
@@ -264,7 +291,7 @@ List Assets
 - `currency` (string | null, optional)
 - `search` (string | null, optional) — ilike sobre symbol o name
 - `limit` (integer, optional)
-- `offset` (integer, optional)
+- `skip` (integer, optional)
 
 **Response 200** — Successful Response:
 
@@ -367,6 +394,11 @@ HTTPValidationError: {
 
 List Dividends
 
+**Query params**:
+
+- `skip` (integer, optional) — Registros a saltar
+- `limit` (integer, optional) — Máx. registros retornar
+
 **Response 200** — Successful Response:
 
 ```
@@ -379,6 +411,15 @@ array of DividendRead:
     gross_amount: string | null
     tax_amount: string | null
     net_amount: string | null
+    asset: `AssetRead`
+  }
+```
+
+**Response 422** — Validation Error:
+
+```
+HTTPValidationError: {
+    detail?: array of `ValidationError`
   }
 ```
 
@@ -559,12 +600,61 @@ RebuildResult: {
 
 ---
 
+### `GET` `/portfolio/summary`
+
+Get Portfolio Summary
+
+**Response 200** — Successful Response:
+
+```
+PortfolioSummaryResponse: {
+    summary: `PortfolioSummary`
+    account_distribution: array of `AccountDistributionItem`
+  }
+```
+
+---
+
+### `GET` `/portfolio/trend`
+
+Get Portfolio Trend
+
+**Query params**:
+
+- `trend_from` (string (date) | null, optional) — Filtra desde esta fecha inclusive (YYYY-MM-DD).
+- `trend_to` (string (date) | null, optional) — Filtra hasta esta fecha inclusive (YYYY-MM-DD).
+
+**Response 200** — Successful Response:
+
+```
+array of TrendPoint:
+{
+    date: string (date)
+    value: string
+  }
+```
+
+**Response 422** — Validation Error:
+
+```
+HTTPValidationError: {
+    detail?: array of `ValidationError`
+  }
+```
+
+---
+
 
 ## positions
 
 ### `GET` `/positions`
 
 List Positions
+
+**Query params**:
+
+- `skip` (integer, optional) — Registros a saltar
+- `limit` (integer, optional) — Máx. registros retornar
 
 **Response 200** — Successful Response:
 
@@ -580,6 +670,14 @@ array of PositionDerived:
     last_price: string | null
     market_value: string | null
     unrealized_pnl: string | null
+  }
+```
+
+**Response 422** — Validation Error:
+
+```
+HTTPValidationError: {
+    detail?: array of `ValidationError`
   }
 ```
 
@@ -789,6 +887,11 @@ HTTPValidationError: {
 
 List Transactions
 
+**Query params**:
+
+- `skip` (integer, optional) — Registros a saltar
+- `limit` (integer, optional) — Máx. registros retornar
+
 **Response 200** — Successful Response:
 
 ```
@@ -803,6 +906,15 @@ array of TransactionRead:
     executed_at: string (date-time)
     id: string (uuid)
     created_at: string (date-time)
+    asset: `AssetRead`
+  }
+```
+
+**Response 422** — Validation Error:
+
+```
+HTTPValidationError: {
+    detail?: array of `ValidationError`
   }
 ```
 
@@ -839,6 +951,7 @@ TransactionRead: {
     executed_at: string (date-time)
     id: string (uuid)
     created_at: string (date-time)
+    asset: `AssetRead`
   }
 ```
 

@@ -31,31 +31,43 @@ POSITIONS_SQL = text(
         SELECT DISTINCT ON (asset_id) asset_id, close
         FROM asset_prices
         ORDER BY asset_id, date DESC
+    ),
+    positions_data AS (
+        SELECT
+            agg.account_id,
+            agg.asset_id,
+            ast.symbol,
+            ast.name,
+            agg.quantity,
+            agg.avg_cost,
+            lp.close AS last_price,
+            CASE WHEN lp.close IS NOT NULL THEN agg.quantity * lp.close ELSE NULL END
+                AS market_value,
+            CASE
+                WHEN lp.close IS NOT NULL AND agg.avg_cost IS NOT NULL
+                THEN agg.quantity * (lp.close - agg.avg_cost)
+                ELSE NULL
+            END AS unrealized_pnl
+        FROM agg
+        JOIN assets ast ON ast.id = agg.asset_id
+        LEFT JOIN last_price lp ON lp.asset_id = agg.asset_id
+        WHERE agg.quantity > 0
     )
-    SELECT
-        agg.account_id,
-        agg.asset_id,
-        ast.symbol,
-        ast.name,
-        agg.quantity,
-        agg.avg_cost,
-        lp.close AS last_price,
-        CASE WHEN lp.close IS NOT NULL THEN agg.quantity * lp.close ELSE NULL END
-            AS market_value,
-        CASE
-            WHEN lp.close IS NOT NULL AND agg.avg_cost IS NOT NULL
-            THEN agg.quantity * (lp.close - agg.avg_cost)
-            ELSE NULL
-        END AS unrealized_pnl
-    FROM agg
-    JOIN assets ast ON ast.id = agg.asset_id
-    LEFT JOIN last_price lp ON lp.asset_id = agg.asset_id
-    WHERE agg.quantity > 0
-    ORDER BY ast.symbol;
+    SELECT * FROM positions_data
+    ORDER BY symbol
+    OFFSET :skip
+    LIMIT :limit;
     """
 )
 
 
-async def list_for_user(session: AsyncSession, clerk_id: str) -> list[dict]:
-    result = await session.execute(POSITIONS_SQL, {"clerk_id": clerk_id})
+async def list_for_user(
+    session: AsyncSession, clerk_id: str,
+    skip: int = 0,
+    limit: int = 10,
+) -> list[dict]:
+    result = await session.execute(
+        POSITIONS_SQL, 
+        {"clerk_id": clerk_id, "skip": skip, "limit": limit}
+    )
     return [dict(row) for row in result.mappings().all()]
