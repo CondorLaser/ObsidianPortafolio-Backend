@@ -56,3 +56,8 @@ class PortfolioDashboard(BaseModel):
     trend: list[TrendPoint]
     account_distribution: list[AccountDistributionItem]
     positions: list[PositionDerived]
+
+# Para versión simplificada de /dashboard = /portfolio/summary
+class PortfolioSummaryResponse(BaseModel):
+    summary: PortfolioSummary
+    account_distribution: list[AccountDistributionItem]

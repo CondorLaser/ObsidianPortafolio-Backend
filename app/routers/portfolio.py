@@ -8,7 +8,7 @@ from app.core.auth import get_current_user
 from app.core.db import get_db
 from app.models.user import Profile
 from app.repositories import portfolio_repo
-from app.schemas.portfolio import PortfolioDashboard
+from app.schemas.portfolio import PortfolioDashboard, PortfolioSummaryResponse, TrendPoint
 
 router = APIRouter(prefix="/portfolio", tags=["portfolio"])
 
@@ -45,3 +45,25 @@ async def rebuild_portfolio(
     n_snaps = await portfolio_repo.replace_snapshots(db, user.clerk_id, snaps)
     n_pos = await portfolio_repo.replace_positions(db, user.clerk_id, pos)
     return RebuildResult(snapshots_persisted=n_snaps, positions_persisted=n_pos)
+
+
+@router.get("/summary", response_model=PortfolioSummaryResponse)
+async def get_portfolio_summary(
+    user: Profile = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    return await portfolio_repo.get_portfolio_summary_data(db, user.clerk_id)
+
+@router.get("/trend", response_model=list[TrendPoint])
+async def get_portfolio_trend(
+    user: Profile = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    trend_from: date_type | None = Query(None, description="Filtra desde esta fecha inclusive (YYYY-MM-DD)."),
+    trend_to: date_type | None = Query(None, description="Filtra hasta esta fecha inclusive (YYYY-MM-DD)."),
+):
+    return await portfolio_repo.get_portfolio_trend_data(
+        db, user.clerk_id, trend_from=trend_from, trend_to=trend_to
+    )
+
+# Para obtener positions asociados al portafolio total/usuario dejaré el GET /positions
+# del router positions
