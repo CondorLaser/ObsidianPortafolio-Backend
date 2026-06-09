@@ -38,6 +38,9 @@ POSITIONS_SQL = text(
             agg.asset_id,
             ast.symbol,
             ast.name,
+            ast.kind,      
+            ast.currency,  
+            ast.created_at,
             agg.quantity,
             agg.avg_cost,
             lp.close AS last_price,
@@ -60,7 +63,6 @@ POSITIONS_SQL = text(
     """
 )
 
-
 async def list_for_user(
     session: AsyncSession, clerk_id: str,
     skip: int = 0,
@@ -70,4 +72,18 @@ async def list_for_user(
         POSITIONS_SQL, 
         {"clerk_id": clerk_id, "skip": skip, "limit": limit}
     )
-    return [dict(row) for row in result.mappings().all()]
+    
+    positions = []
+    for row in result.mappings().all():
+        d = dict(row)
+        d["asset"] = {
+            "id": d["asset_id"],
+            "symbol": d["symbol"],
+            "name": d["name"],
+            "kind": d["kind"],
+            "currency": d["currency"],
+            "created_at": d["created_at"]
+        }
+        positions.append(d)
+        
+    return positions
