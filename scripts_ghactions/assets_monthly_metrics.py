@@ -94,6 +94,17 @@ prices_spy  = get_prices(cur, BASELINE_ETF_ACCIONES)
 returns_ipsa = prices_to_returns(prices_ipsa)
 returns_spy  = prices_to_returns(prices_spy)
 
+# Justo después de calcular returns_spy
+retornos_lista = sorted(returns_spy.values())
+print("SPY retornos más extremos:")
+print("  Mayores:", retornos_lista[-5:])
+print("  Menores:", retornos_lista[:5])
+
+# Ver qué fechas tienen esos retornos extremos
+for fecha, ret in returns_spy.items():
+    if abs(ret) > 0.05:  # más de 5% en un día
+        print(f"  OUTLIER: {fecha} → {ret:.4f}")
+
 # Traer todos los assets (últimos 253 precios → 252 retornos)
 cur.execute("""
     SELECT asset_id, date, close
@@ -126,12 +137,14 @@ for asset_id, prices in prices_by_asset.items():
     #print(f"{asset_id[:8]} | tipo={asset_kind} | fechas_asset={len(returns_asset)} | fechas_mercado={len(returns_mercado)} | fechas_comunes={len(fechas_comunes)}")
     
     # Fechas del IPSA
-    print("Tipo fecha IPSA:", type(list(returns_ipsa.keys())[0]), "| Ejemplo:", list(returns_ipsa.keys())[0])
+    #print("Tipo fecha IPSA:", type(list(returns_ipsa.keys())[0]), "| Ejemplo:", list(returns_ipsa.keys())[0])
 
     # Fechas de un fund cualquiera
-    un_fund_id = next(aid for aid, prices in prices_by_asset.items() if asset_types.get(aid) == "fund")
-    returns_fund = prices_to_returns(prices_by_asset[un_fund_id])
-    print("Tipo fecha fund:", type(list(returns_fund.keys())[0]), "| Ejemplo:", list(returns_fund.keys())[0])
+    #un_fund_id = next(aid for aid, prices in prices_by_asset.items() if asset_types.get(aid) == "fund")
+    #returns_fund = prices_to_returns(prices_by_asset[un_fund_id])
+    #print("Tipo fecha fund:", type(list(returns_fund.keys())[0]), "| Ejemplo:", list(returns_fund.keys())[0])
+
+    # Busca un stock conocido
 
     beta = calculate_beta(returns_asset, returns_mercado)
 
