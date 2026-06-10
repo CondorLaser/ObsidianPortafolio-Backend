@@ -1,0 +1,141 @@
+from math import sqrt
+from collections import defaultdict
+import os
+import psycopg2
+from psycopg2.extras import execute_values
+import requests
+
+
+#ACA HACEMOS EL UPDATE DE LAS MÉTRICAS MENSUALES DE LOS ASSETS   
+def connection_bdd():
+    conn = psycopg2.connect(os.environ["DATABASE_URL"])
+    cur = conn.cursor()
+    return conn, cur
+
+def close_bdd(conn, cur):
+    cur.close()
+    conn.close()
+
+
+print("Comenzamos Beta")    
+
+#vamos a buscar las baselines:
+BASELINE_FONDOS_MUTUOS = "bfc18ef3-8ce1-4faf-bcb9-df78524622c4"  # IPSA
+BASELINE_ETF_ACCIONES  = "5e65fe42-49fc-4b8c-ab3f-7562437518af"  # SPY
+
+def get_prices(cur, asset_id, limit=None):
+    """Devuelve [(date, close), ...] ordenado ASC para un asset."""
+    if limit:
+        cur.execute("""
+            SELECT date, close
+            FROM (
+                SELECT date, close,
+                       ROW_NUMBER() OVER (PARTITION BY asset_id ORDER BY date DESC) AS rn
+                FROM asset_prices
+                WHERE asset_id = %s
+            ) t
+            WHERE rn <= %s
+            ORDER BY date ASC
+        """, (asset_id, limit))
+    else:
+        cur.execute("""
+            SELECT date, close
+            FROM asset_prices
+            WHERE asset_id = %s
+            ORDER BY date ASC
+        """, (asset_id,))
+    return [(row[0], float(row[1])) for row in cur.fetchall()]
+
+
+def prices_to_returns(prices):
+    """Convierte [(date, close), ...] en {date: retorno_diario}."""
+    returns = {}
+    for i in range(1, len(prices)):
+        prev_close = prices[i-1][1]
+        if prev_close == 0:
+            continue
+        date = prices[i][0]
+        daily_return = (prices[i][1] - prev_close) / prev_close
+        returns[date] = daily_return
+    return returns
+
+
+def beta(returns_asset: dict, returns_mercado: dict) -> float | None:
+    """
+    Beta = Cov(Ra, Rm) / Var(Rm)
+    Solo usa fechas donde ambos tienen retorno (inner join por fecha).
+    """
+    fechas_comunes = sorted(set(returns_asset) & set(returns_mercado))
+    if len(fechas_comunes) < 30:  # mínimo 30 observaciones
+        return None
+
+    ra = [returns_asset[f]   for f in fechas_comunes]
+    rm = [returns_mercado[f] for f in fechas_comunes]
+
+    mean_ra = sum(ra) / len(ra)
+    mean_rm = sum(rm) / len(rm)
+
+    cov = sum((a - mean_ra) * (m - mean_rm) for a, m in zip(ra, rm)) / (len(ra) - 1)
+    var = sum((m - mean_rm) ** 2               for m in rm)            / (len(rm) - 1)
+
+    if var == 0:
+        return None
+
+    return cov / var
+
+conn, cur = connection_bdd()
+
+# Cargar baselines una sola vez
+prices_ipsa = get_prices(cur, BASELINE_FONDOS_MUTUOS)
+prices_spy  = get_prices(cur, BASELINE_ETF_ACCIONES)
+
+returns_ipsa = prices_to_returns(prices_ipsa)
+returns_spy  = prices_to_returns(prices_spy)
+
+# Traer todos los assets (últimos 253 precios → 252 retornos)
+cur.execute("""
+    SELECT asset_id, date, close
+    FROM (
+        SELECT asset_id, date, close,
+               ROW_NUMBER() OVER (PARTITION BY asset_id ORDER BY date DESC) AS rn
+        FROM asset_prices
+        WHERE asset_id NOT IN (%s, %s)
+    ) t
+    WHERE rn <= 253
+    ORDER BY asset_id, date ASC
+""", (BASELINE_FONDOS_MUTUOS, BASELINE_ETF_ACCIONES))
+
+prices_by_asset = defaultdict(list)
+for asset_id, date, close in cur.fetchall():
+    prices_by_asset[asset_id].append((date, float(close)))
+
+# Traer tipo de cada asset
+cur.execute("SELECT id, type FROM assets")
+asset_types = {row[0]: row[1] for row in cur.fetchall()}
+
+# Calcular Beta para cada asset
+info_beta = []
+for asset_id, prices in prices_by_asset.items():
+    asset_type = asset_types.get(asset_id)
+    returns_mercado = returns_ipsa if asset_type == "fund" else returns_spy
+    returns_asset = prices_to_returns(prices)
+    beta = beta(returns_asset, returns_mercado)
+
+    if beta is None:
+        continue
+
+    last_date = prices[-1][0]
+    info_beta.append((asset_id, last_date, float(beta)))
+
+print(len(info_beta))
+execute_values(
+    cur,
+    """
+    INSERT INTO asset_daily_metrics (asset_id, date, beta)
+    VALUES %s
+    ON CONFLICT (asset_id, date) DO UPDATE SET beta = EXCLUDED.beta
+    """,
+    info_beta,
+)
+conn.commit()
+close_bdd(conn, cur)
