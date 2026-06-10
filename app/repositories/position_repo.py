@@ -1,5 +1,10 @@
-from sqlalchemy import text
+from sqlalchemy import text, select
+import uuid
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
+
+from app.models.position import Position
+from app.models.account import Account
 
 
 # Posiciones derivadas en runtime desde transactions + asset_prices. Existe
@@ -63,7 +68,7 @@ POSITIONS_SQL = text(
     """
 )
 
-async def list_for_user(
+async def list_for_user_portfolio(
     session: AsyncSession, clerk_id: str,
     skip: int = 0,
     limit: int = 10,
@@ -87,3 +92,22 @@ async def list_for_user(
         positions.append(d)
         
     return positions
+
+async def list_for_user(
+    session: AsyncSession, 
+    clerk_id: str,
+    skip: int = 0,
+    limit: int = 10,
+) -> list[Position]:    
+    stmt = (
+        select(Position)
+        .join(Account, Account.id == Position.account_id)
+        .where(Account.user_id == clerk_id)
+        .options(selectinload(Position.asset))
+        .order_by(Position.updated_at.desc())
+        .offset(skip)
+        .limit(limit)
+    )
+    
+    result = await session.execute(stmt)
+    return list(result.scalars().all())
