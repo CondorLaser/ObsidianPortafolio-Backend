@@ -60,7 +60,7 @@ def prices_to_returns(prices):
     return returns
 
 
-def beta(returns_asset: dict, returns_mercado: dict) -> float | None:
+def calculate_beta(returns_asset: dict, returns_mercado: dict) -> float | None:
     """
     Beta = Cov(Ra, Rm) / Var(Rm)
     Solo usa fechas donde ambos tienen retorno (inner join por fecha).
@@ -119,7 +119,7 @@ for asset_id, prices in prices_by_asset.items():
     asset_kind = asset_kinds.get(asset_id)
     returns_mercado = returns_ipsa if asset_kind == "fund" else returns_spy
     returns_asset = prices_to_returns(prices)
-    beta = beta(returns_asset, returns_mercado)
+    beta = calculate_beta(returns_asset, returns_mercado)
 
     if beta is None:
         continue
