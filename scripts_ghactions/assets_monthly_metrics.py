@@ -109,11 +109,11 @@ prices_by_asset = defaultdict(list)
 for asset_id, date, close in cur.fetchall():
     prices_by_asset[asset_id].append((date, float(close)))
 
-# Traer tipo de cada asset
+#traer tipo de cada asset
 cur.execute("SELECT id, kind FROM assets")
 asset_kinds = {row[0]: row[1] for row in cur.fetchall()}
 
-# Calcular Beta para cada asset
+#calcular beta 
 info_beta = []
 for asset_id, prices in prices_by_asset.items():
     asset_kind = asset_kinds.get(asset_id)
