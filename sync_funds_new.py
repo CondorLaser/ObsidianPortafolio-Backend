@@ -3,9 +3,7 @@ import psycopg2
 from psycopg2.extras import execute_values
 from datetime import date, timedelta
 import os
-from dotenv import load_dotenv
 
-load_dotenv()
 
 BASE_URL = "https://fintual.cl/api"
 

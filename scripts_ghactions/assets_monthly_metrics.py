@@ -5,8 +5,6 @@ import psycopg2
 from psycopg2.extras import execute_values
 import requests
 
-from dotenv import load_dotenv
-load_dotenv()
 
 #ACA HACEMOS EL UPDATE DE LAS MÉTRICAS MENSUALES DE LOS ASSETS   
 def connection_bdd():
