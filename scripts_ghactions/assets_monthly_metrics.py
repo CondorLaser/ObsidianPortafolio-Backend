@@ -131,7 +131,7 @@ print(len(info_beta))
 execute_values(
     cur,
     """
-    INSERT INTO asset_daily_metrics (asset_id, date, beta)
+    INSERT INTO asset_monthly_metrics (asset_id, date, beta)
     VALUES %s
     ON CONFLICT (asset_id, date) DO UPDATE SET beta = EXCLUDED.beta
     """,
