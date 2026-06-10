@@ -110,14 +110,14 @@ for asset_id, date, close in cur.fetchall():
     prices_by_asset[asset_id].append((date, float(close)))
 
 # Traer tipo de cada asset
-cur.execute("SELECT id, type FROM assets")
-asset_types = {row[0]: row[1] for row in cur.fetchall()}
+cur.execute("SELECT id, kind FROM assets")
+asset_kinds = {row[0]: row[1] for row in cur.fetchall()}
 
 # Calcular Beta para cada asset
 info_beta = []
 for asset_id, prices in prices_by_asset.items():
-    asset_type = asset_types.get(asset_id)
-    returns_mercado = returns_ipsa if asset_type == "fund" else returns_spy
+    asset_kind = asset_kinds.get(asset_id)
+    returns_mercado = returns_ipsa if asset_kind == "fund" else returns_spy
     returns_asset = prices_to_returns(prices)
     beta = beta(returns_asset, returns_mercado)
 
