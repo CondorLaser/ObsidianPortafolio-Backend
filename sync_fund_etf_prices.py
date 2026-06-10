@@ -141,25 +141,48 @@ ON CONFLICT (symbol, name) DO NOTHING
 execute_values(cur, query_assets, data)
 conn.commit()
 
-last_date = get_last_stored_date(cur)
-if last_date:
-    last_date = (last_date + timedelta(days=1)).isoformat()
+# Ultima fecha del asset en particular
+cur.execute("""
+    SELECT a.id, MAX(ap.date) as ultima_fecha
+    FROM assets a
+    LEFT JOIN asset_prices ap ON ap.asset_id = a.id
+    WHERE a.kind IN ('etf', 'fund')
+    GROUP BY a.id
+""")
+last_date_by_asset = {row[0]: row[1] for row in cur.fetchall()}
 
 cur.close()
 conn.close()
 
 # ── 3. Bajar precios de Fintual ───────────────────────────────────────────────
+conn = psycopg2.connect(os.environ["DATABASE_URL"])
+cur = conn.cursor()      
+
+cur.execute("SELECT id, symbol, name, currency FROM assets")
+rows = cur.fetchall()
+symbol_name_to_id       = {(row[1], row[2]): row[0] for row in rows}
+symbol_name_to_currency = {(row[1], row[2]): row[3] for row in rows}
+
+cur.close()  
+conn.close()
+
 all_prices = {}
 
 for i, asset in enumerate(usefull):
     if asset["kind"] == "mutual_fund":
         for ra_serie, ra_id in real_asset_map.get(asset["id"], []):
-            prices = get_price_history_safe(ra_id, last_date)
+            asset_id_bdd = symbol_name_to_id.get((ra_serie, asset["name"]))
+            asset_last_date = last_date_by_asset.get(asset_id_bdd)
+            from_date = (asset_last_date + timedelta(days=1)).isoformat() if asset_last_date else "2020-01-01"
+            prices = get_price_history_safe(ra_id, from_date)
             all_prices[(ra_serie, asset["name"])] = prices
     else:
         real_assets = get_real_assets_for_conceptual(asset["id"])
         if real_assets:
-            prices = get_price_history_safe(real_assets[0]["id"], last_date)
+            asset_id_bdd = symbol_name_to_id.get((asset["symbol"], asset["name"]))
+            asset_last_date = last_date_by_asset.get(asset_id_bdd)
+            from_date = (asset_last_date + timedelta(days=1)).isoformat() if asset_last_date else "2020-01-01"
+            prices = get_price_history_safe(real_assets[0]["id"], from_date)
             all_prices[(asset["symbol"], asset["name"])] = prices
 
     time.sleep(1)
@@ -171,10 +194,6 @@ for i, asset in enumerate(usefull):
 conn = psycopg2.connect(os.environ["DATABASE_URL"])
 cur = conn.cursor()
 
-cur.execute("SELECT id, symbol, name, currency FROM assets")
-rows = cur.fetchall()
-symbol_name_to_id       = {(row[1], row[2]): row[0] for row in rows}
-symbol_name_to_currency = {(row[1], row[2]): row[3] for row in rows}
 
 price_data = []
 for (symbol, name), prices in all_prices.items():

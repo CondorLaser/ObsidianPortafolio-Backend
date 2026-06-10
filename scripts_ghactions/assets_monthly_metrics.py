@@ -5,6 +5,8 @@ import psycopg2
 from psycopg2.extras import execute_values
 import requests
 
+from dotenv import load_dotenv
+load_dotenv()
 
 #ACA HACEMOS EL UPDATE DE LAS MÉTRICAS MENSUALES DE LOS ASSETS   
 def connection_bdd():
@@ -119,6 +121,18 @@ for asset_id, prices in prices_by_asset.items():
     asset_kind = asset_kinds.get(asset_id)
     returns_mercado = returns_ipsa if asset_kind == "fund" else returns_spy
     returns_asset = prices_to_returns(prices)
+
+    #fechas_comunes = sorted(set(returns_asset) & set(returns_mercado))
+    #print(f"{asset_id[:8]} | tipo={asset_kind} | fechas_asset={len(returns_asset)} | fechas_mercado={len(returns_mercado)} | fechas_comunes={len(fechas_comunes)}")
+    
+    # Fechas del IPSA
+    print("Tipo fecha IPSA:", type(list(returns_ipsa.keys())[0]), "| Ejemplo:", list(returns_ipsa.keys())[0])
+
+    # Fechas de un fund cualquiera
+    un_fund_id = next(aid for aid, prices in prices_by_asset.items() if asset_types.get(aid) == "fund")
+    returns_fund = prices_to_returns(prices_by_asset[un_fund_id])
+    print("Tipo fecha fund:", type(list(returns_fund.keys())[0]), "| Ejemplo:", list(returns_fund.keys())[0])
+
     beta = calculate_beta(returns_asset, returns_mercado)
 
     if beta is None:
