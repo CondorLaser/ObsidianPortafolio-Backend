@@ -18,6 +18,7 @@ FINTUAL_REAL_ASSETS = {
     247:   ("APV", "Conservative Clooney"),
     26174: ("A",   "Conservative George 107"),
     15077: ("A",   "Very Conservative Streep"),
+    12051: ("A", "FONDO MUTUO SECURITY INDEX FUND S&P/CLX IPSA"),
 }
 
 DEFAULT_FROM = date(2025, 6, 10)  
