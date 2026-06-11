@@ -12,7 +12,7 @@ router = APIRouter(prefix="/positions", tags=["positions"])
 
 # Obtener las positions no materializadas (realiza cálculos en el momento)
 @router.get("/portfolio", response_model=list[PositionDerived])
-async def list_positions(
+async def list_positions_portfolio(
     user: Profile = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
     skip: int = Query(0, ge=0, description="Registros a saltar"),
@@ -21,7 +21,7 @@ async def list_positions(
     return await position_repo.list_for_user_portfolio(db, user.clerk_id, skip=skip, limit=limit)
 
 # Obtener posiciones de un asset específico
-@router.get("/asset/{asset_id}", response_model=PositionRead)
+@router.get("/asset/{asset_id}", response_model=list[PositionRead])
 async def list_positions_by_asset(
     asset_id: uuid.UUID,
     user: Profile = Depends(get_current_user),

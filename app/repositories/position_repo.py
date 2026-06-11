@@ -119,9 +119,12 @@ async def list_for_user_and_asset(
     asset_id: str,
     skip: int = 0,
     limit: int = 10,
-) -> list[dict]:
-    """Obtiene positions materializadas de un usuario para un asset específico."""
-    
+) -> list[Position]:
+    """Obtiene positions materializadas de un usuario para un asset específico.
+
+    Un usuario puede tener el mismo asset en varias cuentas, así que se
+    devuelve una lista (no un único registro)."""
+
     stmt = (
         select(Position)
         .join(Account, Account.id == Position.account_id)
@@ -134,4 +137,4 @@ async def list_for_user_and_asset(
     )
     
     result = await session.execute(stmt)
-    return result.scalar_one_or_none()
+    return list(result.scalars().all())
