@@ -1,10 +1,11 @@
+import uuid
 from datetime import date as date_type
 
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from sqlalchemy import select
+from sqlalchemy import select, text
 from app.models.portfolio_snapshot import PortfolioSnapshot
 
 from app.core.auth import get_current_user
@@ -80,13 +81,49 @@ async def get_daily_metrics(
     db: AsyncSession = Depends(get_db),
 ):
     result = await db.execute(
-        select(PortfolioSnapshot)
-        .where(PortfolioSnapshot.user_id == user.clerk_id)
-        .order_by(PortfolioSnapshot.date.asc())
+        text("""
+            SELECT *
+            FROM portfolio_snapshots
+            WHERE user_id = :user_id
+            ORDER BY date ASC
+        """),
+        {"user_id": user.clerk_id},
     )
 
-    snapshots = result.scalars().all()
+    snapshots = result.mappings().all()
 
-    metrics = calculate_portfolio_daily_metrics(snapshots, portfolio_id=user.clerk_id)
+    metrics = calculate_portfolio_daily_metrics(snapshots)
+
+    metric_id = str(uuid.uuid4())
+
+    await db.execute(
+        text("""
+            INSERT INTO portfolio_daily_metrics (
+                id,
+                portfolio_id,
+                date,
+                pnl,
+                max_drawdown,
+                volatility
+            )
+            VALUES (
+                :id,
+                :portfolio_id,
+                :date,
+                :pnl,
+                :max_drawdown,
+                :volatility
+            )
+        """),
+        {
+            "id": metric_id,
+            "portfolio_id": metrics["portfolio_id"],
+            "date": metrics["date"],
+            "pnl": metrics["pnl"],
+            "max_drawdown": metrics["max_drawdown"],
+            "volatility": metrics["volatility"],
+        },
+    )
+    await db.commit()
 
     return metrics
