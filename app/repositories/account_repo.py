@@ -105,7 +105,9 @@ async def get_positions_by_account(
     # Obtener Positions paginadas + ordenadas
     result = await session.execute(
         select(Position)
+        .join(Account, Account.id == Position.account_id)
         .where(Position.account_id == account_id)
+        .options(selectinload(Position.asset))
         .order_by(Position.updated_at.desc())
         .offset(skip)
         .limit(limit)
