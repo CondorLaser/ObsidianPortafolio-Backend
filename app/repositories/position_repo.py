@@ -111,3 +111,27 @@ async def list_for_user(
     
     result = await session.execute(stmt)
     return list(result.scalars().all())
+
+
+async def list_for_user_and_asset(
+    session: AsyncSession, 
+    clerk_id: str,
+    asset_id: str,
+    skip: int = 0,
+    limit: int = 10,
+) -> list[dict]:
+    """Obtiene positions materializadas de un usuario para un asset específico."""
+    
+    stmt = (
+        select(Position)
+        .join(Account, Account.id == Position.account_id)
+        .where(Account.user_id == clerk_id)
+        .where(Position.asset_id == asset_id)
+        .options(selectinload(Position.asset))
+        .order_by(Position.updated_at.desc())
+        .offset(skip)
+        .limit(limit)
+    )
+    
+    result = await session.execute(stmt)
+    return result.scalar_one_or_none()
