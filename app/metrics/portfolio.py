@@ -1,11 +1,10 @@
-import uuid
 from decimal import Decimal
 from statistics import stdev
 
 from app.schemas.portfolio import PortfolioSnapshotRead
 
 
-def calculate_portfolio_daily_metrics(snapshots: list[PortfolioSnapshotRead], portfolio_id: uuid.UUID) -> dict:
+def calculate_portfolio_daily_metrics(snapshots: list[PortfolioSnapshotRead], portfolio_id: str) -> dict:
     if not snapshots:
         return {
             "portfolio_id": portfolio_id,

@@ -4,11 +4,17 @@ from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from sqlalchemy import select
+from app.models.portfolio_snapshot import PortfolioSnapshot
+
 from app.core.auth import get_current_user
 from app.core.db import get_db
 from app.models.user import Profile
+from app.models.portfolio_snapshot import PortfolioSnapshot
 from app.repositories import portfolio_repo
-from app.schemas.portfolio import PortfolioDashboard, PortfolioSummaryResponse, TrendPoint
+from app.schemas.portfolio import PortfolioDashboard, PortfolioSummaryResponse, TrendPoint, PortfolioSnapshotRead
+
+from app.metrics.portfolio import calculate_portfolio_daily_metrics
 
 router = APIRouter(prefix="/portfolio", tags=["portfolio"])
 
@@ -67,3 +73,20 @@ async def get_portfolio_trend(
 
 # Para obtener positions asociados al portafolio total/usuario dejaré el GET /positions
 # del router positions
+
+@router.post("/metrics/daily")
+async def get_daily_metrics(
+    user: Profile = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        select(PortfolioSnapshot)
+        .where(PortfolioSnapshot.user_id == user.clerk_id)
+        .order_by(PortfolioSnapshot.date.asc())
+    )
+
+    snapshots = result.scalars().all()
+
+    metrics = calculate_portfolio_daily_metrics(snapshots, portfolio_id=user.clerk_id)
+
+    return metrics
