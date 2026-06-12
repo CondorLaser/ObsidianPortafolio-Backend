@@ -126,9 +126,15 @@ def pnl_by_account(cur) -> dict[str, float]:
     return {str(acc): float(pnl) for acc, pnl in cur.fetchall()}
 
 
+def accounts_for_clerk(cur, clerk_id: str) -> set[str]:
+    cur.execute("SELECT id FROM accounts WHERE user_id = %s", (clerk_id,))
+    return {str(r[0]) for r in cur.fetchall()}
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--apply", action="store_true", help="escribe en account_daily_metrics (default: dry-run)")
+    ap.add_argument("--clerk-id", default=None, help="acotar a las cuentas de un usuario")
     args = ap.parse_args()
 
     conn, cur = connection_bdd()
@@ -136,9 +142,13 @@ def main() -> int:
     cashflows = build_cashflows(cur)
     pnls = pnl_by_account(cur)
 
+    scope = accounts_for_clerk(cur, args.clerk_id) if args.clerk_id else None
+
     rows = []  # (account_id, date, pnl, max_drawdown, volatility)
     print(f"{'account_id':38}{'fecha':>12}{'pnl':>16}{'max_dd%':>10}{'vol(anual)':>12}")
     for account_id, pts in series.items():
+        if scope is not None and account_id not in scope:
+            continue
         if not pts:
             continue
         rets = adjusted_returns(pts, cashflows, account_id)
