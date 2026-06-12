@@ -73,5 +73,49 @@ def calculate_volatility(snapshots: list[PortfolioSnapshotRead]) -> Decimal:
     return stdev(returns)
 
 
-def calculate_twr():
-    pass
+def calculate_twr(snapshots: list[PortfolioSnapshotRead]) -> Decimal:
+    if len(snapshots) < 2:
+        return Decimal("0")
+    
+    twr = Decimal("1")
+    for i in range(1, len(snapshots)):
+        prev = snapshots[i - 1].total_value
+        curr = snapshots[i].total_value
+
+        if not prev or prev == 0:
+            continue
+
+        period_return = (curr - prev) / prev
+        twr *= (Decimal("1") + period_return)
+
+    return twr - Decimal("1")
+
+
+def calculate_var(snapshots: list[PortfolioSnapshotRead]) -> Decimal:
+    if len(snapshots) < 2:
+        return Decimal("0")
+    
+    returns = []
+    for i in range(1, len(snapshots)):
+        prev = snapshots[i - 1].total_value
+        curr = snapshots[i].total_value
+
+        if not prev or prev == 0:
+            continue
+
+        returns.append((curr - prev) / prev)
+
+    if len(returns) < 2:
+        return Decimal("0")
+    
+    returns.sort()
+
+    confidence = 0.95
+
+    percentile_index = int((1 - confidence) * len(returns))
+    percentile_index = max(0, min(percentile_index, len(returns) - 1))
+
+    return abs(returns[percentile_index])
+
+
+
