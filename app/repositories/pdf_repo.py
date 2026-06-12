@@ -18,6 +18,56 @@ from app.models.dividend import Dividend
 from app.models.transaction import Transaction, TransactionKind
 
 
+# ── Idempotencia de la ingesta ───────────────────────────────────────────
+# La ingesta de PDFs es append-only por naturaleza (Fintual entrega el historial
+# completo). Re-subir el mismo PDF NO debe duplicar. Se filtran las filas cuya
+# clave de negocio ya existe en la cuenta (o se repite dentro del mismo lote).
+# Se usa `date_` (no `executed_at`) en la clave: `executed_at` vuelve tz-aware
+# desde la BD y no matchearía con el naive que construimos al insertar.
+
+def _tx_key(t: "Transaction") -> tuple:
+    return (t.asset_id, t.date_, t.quantity, t.price, t.kind)
+
+
+def _div_key(d: "Dividend") -> tuple:
+    return (d.asset_id, d.date, d.gross_amount, d.tax_amount, d.net_amount)
+
+
+async def _existing_tx_keys(db: AsyncSession, account_id: uuid.UUID) -> set:
+    rows = await db.execute(
+        select(
+            Transaction.asset_id, Transaction.date_,
+            Transaction.quantity, Transaction.price, Transaction.kind,
+        ).where(Transaction.account_id == account_id)
+    )
+    return {tuple(r) for r in rows.all()}
+
+
+async def _existing_div_keys(db: AsyncSession, account_id: uuid.UUID) -> set:
+    rows = await db.execute(
+        select(
+            Dividend.asset_id, Dividend.date,
+            Dividend.gross_amount, Dividend.tax_amount, Dividend.net_amount,
+        ).where(Dividend.account_id == account_id)
+    )
+    return {tuple(r) for r in rows.all()}
+
+
+def _dedupe(objs: list, key_fn, seen: set) -> tuple[list, int]:
+    """Filtra `objs` dejando solo los que no están en `seen` (mutándolo).
+    Devuelve (nuevos, n_duplicados_omitidos)."""
+    nuevos = []
+    dups = 0
+    for o in objs:
+        k = key_fn(o)
+        if k in seen:
+            dups += 1
+            continue
+        seen.add(k)
+        nuevos.append(o)
+    return nuevos, dups
+
+
 async def stocks_etf_1(
     db: AsyncSession,
     clerk_id: str,
@@ -86,13 +136,17 @@ async def stocks_etf_1(
             )
         )
 
-    db.add_all(tx_objs)
-    db.add_all(div_objs)
+    # Idempotencia: no re-insertar lo que ya existe en la cuenta.
+    tx_new, tx_dups = _dedupe(tx_objs, _tx_key, await _existing_tx_keys(db, account_id))
+    div_new, div_dups = _dedupe(div_objs, _div_key, await _existing_div_keys(db, account_id))
+    db.add_all(tx_new)
+    db.add_all(div_new)
     await db.commit()
 
     return {
-        "compras_ventas_guardadas": len(tx_objs),
-        "dividendos_guardados": len(div_objs),
+        "compras_ventas_guardadas": len(tx_new),
+        "dividendos_guardados": len(div_new),
+        "duplicados_omitidos": tx_dups + div_dups,
         "errores_activos_faltantes": errors,
     }
 
@@ -149,11 +203,14 @@ async def save_mutual_funds(
             )
         )
 
-    db.add_all(tx_objs)
+    # Idempotencia: no re-insertar lo que ya existe en la cuenta.
+    tx_new, tx_dups = _dedupe(tx_objs, _tx_key, await _existing_tx_keys(db, account_id))
+    db.add_all(tx_new)
     await db.commit()
 
     return {
-        "compras_ventas_guardadas": len(tx_objs),
+        "compras_ventas_guardadas": len(tx_new),
+        "duplicados_omitidos": tx_dups,
         "errores_activos_faltantes": errors,
     }
 
