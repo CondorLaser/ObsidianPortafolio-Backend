@@ -579,6 +579,14 @@ async def test_ingestion_pdf_mutual_funds(r: Report):
     else:
         r.fail("pdf mutual_funds", f"result={result}")
 
+    # Idempotencia: re-subir el mismo PDF NO debe duplicar
+    async with SessionLocal() as db:
+        again = await pdf_repo.save_mutual_funds(db, u_id, rows, acc.id)
+    if again["compras_ventas_guardadas"] == 0 and again.get("duplicados_omitidos") == 2:
+        r.ok("PDF mutual_funds idempotente: 2da subida no duplica (0 nuevas, 2 omitidas)")
+    else:
+        r.fail("pdf mutual_funds idempotente", f"again={again}")
+
 
 async def test_ingestion_twelvedata(r: Report):
     section("Fase 5.3 — TwelveData sync (1 símbolo)")
