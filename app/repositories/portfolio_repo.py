@@ -143,13 +143,23 @@ async def compute_user_series(
                 st.invested += qty * price + fee
                 st.total_fees += fee
             elif tx.kind == TransactionKind.sell:
-                # realized pnl al avg_cost actual
+                # No vender más de lo disponible. Con data incompleta (PDF
+                # parcial, o ventas cuya compra no está en el certificado) el
+                # qty se iría negativo y el avg_cost saldría imposible (ej.
+                # 4297 cuando el valor real es ~1637), contaminando invested
+                # y el PnL. Se acota la venta a la tenencia y se avisa.
                 avg = st.avg_cost or ZERO
-                st.realized_pnl += qty * (price - avg)
-                # reducir invested proporcionalmente
-                if st.qty > 0:
-                    st.invested -= avg * qty
-                st.qty -= qty
+                sell_qty = min(qty, st.qty) if st.qty > ZERO else ZERO
+                if sell_qty < qty:
+                    print(
+                        f"[warn] venta excede tenencia (asset={tx.asset_id}, "
+                        f"account={tx.account_id}): vende {qty}, disponible "
+                        f"{st.qty}. Se ignora el exceso (data incompleta)."
+                    )
+                # realized pnl solo sobre lo realmente vendido, al avg_cost actual
+                st.realized_pnl += sell_qty * (price - avg)
+                st.invested -= avg * sell_qty
+                st.qty -= sell_qty
                 st.total_fees += fee
             elif tx.kind == TransactionKind.dividend:
                 # En este schema, tx.quantity con kind=dividend representa el
