@@ -113,18 +113,17 @@ async def list_for_user(
     return list(result.scalars().all())
 
 
-async def list_for_user_and_asset(
-    session: AsyncSession, 
+async def get_for_user_and_asset(
+    session: AsyncSession,
     clerk_id: str,
     asset_id: str,
-    skip: int = 0,
-    limit: int = 10,
-) -> list[Position]:
-    """Obtiene positions materializadas de un usuario para un asset específico.
+) -> Position | None:
+    """Posición materializada de un usuario para un asset específico.
 
-    Un usuario puede tener el mismo asset en varias cuentas, así que se
-    devuelve una lista (no un único registro)."""
-
+    El front (página de detalle de activo) la consume como UN objeto, no una
+    lista. Si el asset está en varias cuentas se devuelve la más recientemente
+    actualizada — en vez de crashear (scalar_one_or_none) o romper el shape del
+    front (lista). Devuelve None si el usuario no tiene ese asset."""
     stmt = (
         select(Position)
         .join(Account, Account.id == Position.account_id)
@@ -132,9 +131,6 @@ async def list_for_user_and_asset(
         .where(Position.asset_id == asset_id)
         .options(selectinload(Position.asset))
         .order_by(Position.updated_at.desc())
-        .offset(skip)
-        .limit(limit)
     )
-    
     result = await session.execute(stmt)
-    return list(result.scalars().all())
+    return result.scalars().first()
