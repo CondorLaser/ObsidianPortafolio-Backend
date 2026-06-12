@@ -120,10 +120,12 @@ async def save_mutual_funds(
     for row in data:
         name = row[2]
         series = row[3]
-        contributions = row[4]
-        withdrawals = row[5]
-        contributions_cpl = row[6]
-        withdrawals_cpl = row[7]
+        # Fila de extract_mutual_funds:
+        #   [fecha, nom_inv, nom_fondo, serie, aporte_cuotas, rescate_cuotas,
+        #    valor_cuota, aporte_pesos, rescate_pesos]
+        aporte_cuotas = row[4]
+        rescate_cuotas = row[5]
+        valor_cuota = row[6]
 
         asset_id = assets.get((name, series))
         if not asset_id:
@@ -131,14 +133,16 @@ async def save_mutual_funds(
             continue
 
         tx_date = datetime.strptime(row[0], "%d/%m/%Y").date()
-        is_buy = contributions > 0
+        is_buy = aporte_cuotas > 0
+        # quantity = nº de cuotas (unidades); price = valor de la cuota (CLP).
+        # Así quantity * price = monto aportado/rescatado en pesos.
         tx_objs.append(
             Transaction(
                 account_id=account_id,
                 asset_id=asset_id,
                 kind=TransactionKind.buy if is_buy else TransactionKind.sell,
-                quantity=Decimal(str(contributions if is_buy else withdrawals)),
-                price=Decimal(str(contributions_cpl if is_buy else withdrawals_cpl)),
+                quantity=Decimal(str(aporte_cuotas if is_buy else rescate_cuotas)),
+                price=Decimal(str(valor_cuota)),
                 fee=Decimal("0"),
                 executed_at=datetime.combine(tx_date, datetime.min.time()),
                 date_=tx_date,

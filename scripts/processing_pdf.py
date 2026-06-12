@@ -92,14 +92,22 @@ def extract_mutual_funds(pdf):
                 nombre_fondo = cleaned_row[2]
                 serie_fondo = cleaned_row[3]
 
-                aportes = str_a_num(cleaned_row[4])
-                rescate = str_a_num(cleaned_row[5])
-                #valor_cuota = str_a_num(cleaned_row[6])
-                aportes_cpl = cpl_a_num(cleaned_row[8])
-                rescate_cpl = cpl_a_num(cleaned_row[9])
+                # idx4=Aporte Cuotas, idx5=Rescate Cuotas (UNIDADES);
+                # idx6=Valor Cuota (precio unitario en CLP);
+                # idx8=Aporte Pesos, idx9=Rescate Pesos (MONTO en CLP, con "$").
+                aporte_cuotas = str_a_num(cleaned_row[4])
+                rescate_cuotas = str_a_num(cleaned_row[5])
+                valor_cuota = str_a_num(cleaned_row[6])
+                aporte_pesos = cpl_a_num(cleaned_row[8])
+                rescate_pesos = cpl_a_num(cleaned_row[9])
 
-                #print(fecha,nombre_inversion, nombre_fondo, aportes, rescate, valor_cuota)
-                rows.append([fecha,nombre_inversion, nombre_fondo, serie_fondo,  aportes, rescate,  aportes_cpl, rescate_cpl ])
+                # quantity = cuotas, price = valor_cuota → quantity*price = monto.
+                # Se conservan los montos en pesos al final para validación.
+                rows.append([
+                    fecha, nombre_inversion, nombre_fondo, serie_fondo,
+                    aporte_cuotas, rescate_cuotas, valor_cuota,
+                    aporte_pesos, rescate_pesos,
+                ])
     return rows 
 
 def extract_stocks_etf_2(pdf):

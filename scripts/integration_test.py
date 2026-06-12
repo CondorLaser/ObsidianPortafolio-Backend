@@ -562,10 +562,14 @@ async def test_ingestion_pdf_mutual_funds(r: Report):
         )
 
     # Filas en el formato extract_mutual_funds:
-    # [fecha, nombre_inversion, nombre_fondo, serie_fondo, aportes, rescate, aportes_cpl, rescate_cpl]
+    # [fecha, nombre_inversion, nombre_fondo, serie_fondo,
+    #  aporte_cuotas, rescate_cuotas, valor_cuota, aporte_pesos, rescate_pesos]
+    # quantity = cuotas, price = valor_cuota  (cuotas * valor_cuota = monto pesos)
     rows = [
-        ["15/01/2026", "Risky Norris", fund_name, fund_series, 100.0, 0.0, 1000.0, 0.0],
-        ["20/02/2026", "Risky Norris", fund_name, fund_series, 0.0, 50.0, 0.0, 1100.0],
+        # aporte: 100 cuotas a $10 = $1.000
+        ["15/01/2026", "Risky Norris", fund_name, fund_series, 100.0, 0.0, 10.0, 1000.0, 0.0],
+        # rescate: 50 cuotas a $22 = $1.100
+        ["20/02/2026", "Risky Norris", fund_name, fund_series, 0.0, 50.0, 22.0, 0.0, 1100.0],
     ]
     async with SessionLocal() as db:
         result = await pdf_repo.save_mutual_funds(db, u_id, rows, acc.id)
