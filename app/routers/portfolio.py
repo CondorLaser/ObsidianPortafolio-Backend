@@ -15,7 +15,7 @@ from app.models.portfolio_snapshot import PortfolioSnapshot
 from app.repositories import portfolio_repo
 from app.schemas.portfolio import PortfolioDashboard, PortfolioSummaryResponse, TrendPoint, PortfolioSnapshotRead
 
-from app.metrics.portfolio import calculate_portfolio_daily_metrics
+from app.metrics.portfolio import calculate_portfolio_daily_metrics, calculate_portfolio_monthly_metrics
 
 router = APIRouter(prefix="/portfolio", tags=["portfolio"])
 
@@ -91,29 +91,13 @@ async def get_daily_metrics(
     )
 
     snapshots = result.mappings().all()
-
     metrics = calculate_portfolio_daily_metrics(snapshots)
-
     metric_id = str(uuid.uuid4())
 
     await db.execute(
         text("""
-            INSERT INTO portfolio_daily_metrics (
-                id,
-                portfolio_id,
-                date,
-                pnl,
-                max_drawdown,
-                volatility
-            )
-            VALUES (
-                :id,
-                :portfolio_id,
-                :date,
-                :pnl,
-                :max_drawdown,
-                :volatility
-            )
+            INSERT INTO portfolio_daily_metrics (id, portfolio_id, date, pnl, max_drawdown, volatility)
+            VALUES (:id, :portfolio_id, :date, :pnl, :max_drawdown, :volatility)
         """),
         {
             "id": metric_id,
@@ -122,6 +106,42 @@ async def get_daily_metrics(
             "pnl": metrics["pnl"],
             "max_drawdown": metrics["max_drawdown"],
             "volatility": metrics["volatility"],
+        },
+    )
+    await db.commit()
+
+    return metrics
+
+@router.post("/metrics/monthly")
+async def get_monthly_metrics(
+    user: Profile = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        text("""
+            SELECT *
+            FROM portfolio_snapshots
+            WHERE user_id = :user_id
+            ORDER BY date ASC
+        """),
+        {"user_id": user.clerk_id},
+    )
+
+    snapshots = result.mappings().all()
+    metrics = calculate_portfolio_monthly_metrics(snapshots)
+    metric_id = str(uuid.uuid4())
+
+    await db.execute(
+        text("""
+            INSERT INTO portfolio_monthly_metrics (id, portfolio_id, date, twr, var)
+            VALUES (:id, :portfolio_id, :date, :twr, :var)
+        """),
+        {
+            "id": metric_id,
+            "portfolio_id": metrics["portfolio_id"],
+            "date": metrics["date"],
+            "twr": metrics["twr"],
+            "var": metrics["var"],
         },
     )
     await db.commit()

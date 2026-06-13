@@ -1,5 +1,6 @@
 from decimal import Decimal
 from statistics import stdev
+from datetime import timedelta
 
 from app.schemas.portfolio import PortfolioSnapshotRead
 
@@ -20,6 +21,28 @@ def calculate_portfolio_daily_metrics(snapshots: list[PortfolioSnapshotRead]) ->
         "pnl": calculate_pnl(snapshots),
         "max_drawdown": calculate_max_drawdown(snapshots),
         "volatility": calculate_volatility(snapshots),
+    }
+
+
+def calculate_portfolio_monthly_metrics(snapshots: list[PortfolioSnapshotRead]) -> Decimal:
+    if not snapshots:
+        return {
+            "portfolio_id": snapshots[-1].id if snapshots else None,
+            "date": None,
+            "twr": Decimal("0"),
+            "var": Decimal("0"),
+        }
+    
+    end_date = snapshots[-1].date
+    start_date = end_date - timedelta(days=30)
+
+    snapshots = [s for s in snapshots if s.date >= start_date]
+    
+    return {
+        "portfolio_id": snapshots[-1].id,
+        "date": snapshots[-1].date,
+        "twr": calculate_twr(snapshots),
+        "var": calculate_var(snapshots),
     }
 
 
@@ -86,6 +109,14 @@ def calculate_twr(snapshots: list[PortfolioSnapshotRead]) -> Decimal:
             continue
 
         period_return = (curr - prev) / prev
+
+        print(
+            snapshots[i].date,
+            prev,
+            curr,
+            period_return
+        )
+
         twr *= (Decimal("1") + period_return)
 
     return twr - Decimal("1")
@@ -116,6 +147,3 @@ def calculate_var(snapshots: list[PortfolioSnapshotRead]) -> Decimal:
     percentile_index = max(0, min(percentile_index, len(returns) - 1))
 
     return abs(returns[percentile_index])
-
-
-
