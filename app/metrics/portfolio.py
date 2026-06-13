@@ -8,7 +8,6 @@ from app.schemas.portfolio import PortfolioSnapshotRead
 def calculate_portfolio_daily_metrics(snapshots: list[PortfolioSnapshotRead]) -> dict:
     if not snapshots:
         return {
-            "portfolio_id": snapshots[-1].id if snapshots else None,
             "date": None,
             "pnl": Decimal("0"),
             "max_drawdown": Decimal("0"),
@@ -16,7 +15,6 @@ def calculate_portfolio_daily_metrics(snapshots: list[PortfolioSnapshotRead]) ->
         }
     
     return {
-        "portfolio_id": snapshots[-1].id,
         "date": snapshots[-1].date,
         "pnl": calculate_pnl(snapshots),
         "max_drawdown": calculate_max_drawdown(snapshots),
@@ -27,7 +25,6 @@ def calculate_portfolio_daily_metrics(snapshots: list[PortfolioSnapshotRead]) ->
 def calculate_portfolio_monthly_metrics(snapshots: list[PortfolioSnapshotRead]) -> Decimal:
     if not snapshots:
         return {
-            "portfolio_id": snapshots[-1].id if snapshots else None,
             "date": None,
             "twr": Decimal("0"),
             "var": Decimal("0"),
@@ -39,7 +36,6 @@ def calculate_portfolio_monthly_metrics(snapshots: list[PortfolioSnapshotRead]) 
     snapshots = [s for s in snapshots if s.date >= start_date]
     
     return {
-        "portfolio_id": snapshots[-1].id,
         "date": snapshots[-1].date,
         "twr": calculate_twr(snapshots),
         "var": calculate_var(snapshots),

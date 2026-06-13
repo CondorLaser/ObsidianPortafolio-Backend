@@ -96,12 +96,12 @@ async def get_daily_metrics(
 
     await db.execute(
         text("""
-            INSERT INTO portfolio_daily_metrics (id, portfolio_id, date, pnl, max_drawdown, volatility)
-            VALUES (:id, :portfolio_id, :date, :pnl, :max_drawdown, :volatility)
+            INSERT INTO portfolio_daily_metrics (id, user_id, date, pnl, max_drawdown, volatility)
+            VALUES (:id, :user_id, :date, :pnl, :max_drawdown, :volatility)
         """),
         {
             "id": metric_id,
-            "portfolio_id": metrics["portfolio_id"],
+            "user_id": user.clerk_id,
             "date": metrics["date"],
             "pnl": metrics["pnl"],
             "max_drawdown": metrics["max_drawdown"],
@@ -133,12 +133,12 @@ async def get_monthly_metrics(
 
     await db.execute(
         text("""
-            INSERT INTO portfolio_monthly_metrics (id, portfolio_id, date, twr, var)
-            VALUES (:id, :portfolio_id, :date, :twr, :var)
+            INSERT INTO portfolio_monthly_metrics (id, user_id, date, twr, var)
+            VALUES (:id, :user_id, :date, :twr, :var)
         """),
         {
             "id": metric_id,
-            "portfolio_id": metrics["portfolio_id"],
+            "user_id": user.clerk_id,
             "date": metrics["date"],
             "twr": metrics["twr"],
             "var": metrics["var"],
