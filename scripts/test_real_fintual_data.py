@@ -115,27 +115,29 @@ DIVIDENDS = [
 # ────────────────────────────────────────────────────────────────────────────
 # Data del certificado_de_transacciones.pdf (fondos mutuos)
 # Formato extract_mutual_funds:
-# [fecha, nombre_inversion, nombre_fondo, serie_fondo, aportes_cuotas, rescate_cuotas, aportes_pesos, rescate_pesos]
-# Fecha DD/MM/YYYY
+# [fecha, nombre_inversion, nombre_fondo, serie_fondo,
+#  aporte_cuotas, rescate_cuotas, valor_cuota, aporte_pesos, rescate_pesos]
+# quantity = cuotas, price = valor_cuota  (cuotas * valor_cuota = monto en pesos)
+# Fecha DD/MM/YYYY. Valores reales de certificado_de_transacciones.pdf
 # ────────────────────────────────────────────────────────────────────────────
 MUTUAL_FUNDS = [
-    ["13/03/2026", "Reserva", "Very Conservative Streep", "A", 703.8683, 0.0, 1000000.0, 0.0],
-    ["13/03/2026", "Pension Millonaria APV-A", "Risky Norris", "APV", 8.7562, 0.0, 30000.0, 0.0],
-    ["13/03/2026", "Savings to invest", "Moderate Pitt", "A", 348.1641, 0.0, 840000.0, 0.0],
-    ["13/03/2026", "Savings to invest", "Conservative Clooney", "A", 97.7151, 0.0, 160000.0, 0.0],
-    ["12/03/2026", "Maximo Colegio", "Risky Norris", "A", 37.9035, 0.0, 126000.0, 0.0],
-    ["12/03/2026", "Maximo Colegio", "Moderate Pitt", "A", 30.6115, 0.0, 74000.0, 0.0],
-    ["04/03/2026", "Alto Riesgo", "Risky Norris", "A", 14.8865, 0.0, 50000.0, 0.0],
-    ["24/02/2026", "Inversion 1", "Moderate Pitt", "A", 0.0, 9.9750, 0.0, 23766.0],
-    ["24/02/2026", "Inversion 1", "Conservative Clooney", "A", 0.0, 13.0380, 0.0, 21234.0],
-    ["21/01/2026", "Alto Riesgo", "Risky Norris", "A", 0.0, 60.2254, 0.0, 200000.0],
-    ["19/01/2026", "Alto Riesgo", "Risky Norris", "A", 0.0, 59.4286, 0.0, 200000.0],
-    ["02/12/2025", "Inversion 1", "Moderate Pitt", "A", 0.0, 17.9593, 0.0, 44372.0],
-    ["02/12/2025", "Inversion 1", "Conservative Clooney", "A", 0.0, 21.8268, 0.0, 35628.0],
-    ["08/10/2025", "Inversion 1", "Moderate Pitt", "A", 0.0, 23.4173, 0.0, 58241.0],
-    ["08/10/2025", "Inversion 1", "Conservative Clooney", "A", 0.0, 25.6220, 0.0, 41759.0],
-    ["06/10/2025", "Reserva", "Very Conservative Streep", "A", 0.0, 42.9358, 0.0, 60000.0],
-    ["03/10/2025", "Alto Riesgo", "Risky Norris", "A", 14.4504, 0.0, 50000.0, 0.0],
+    ["13/03/2026", "Reserva", "Very Conservative Streep", "A", 703.8683, 0.0, 1420.7204, 1000000.0, 0.0],
+    ["13/03/2026", "Pension Millonaria APV-A", "Risky Norris", "APV", 8.7562, 0.0, 3426.1303, 30000.0, 0.0],
+    ["13/03/2026", "Savings to invest", "Moderate Pitt", "A", 348.1641, 0.0, 2412.6555, 840000.0, 0.0],
+    ["13/03/2026", "Savings to invest", "Conservative Clooney", "A", 97.7151, 0.0, 1637.4137, 160000.0, 0.0],
+    ["12/03/2026", "Maximo Colegio", "Risky Norris", "A", 37.9035, 0.0, 3324.2275, 126000.0, 0.0],
+    ["12/03/2026", "Maximo Colegio", "Moderate Pitt", "A", 30.6115, 0.0, 2417.3908, 74000.0, 0.0],
+    ["04/03/2026", "Alto Riesgo", "Risky Norris", "A", 14.8865, 0.0, 3358.7503, 50000.0, 0.0],
+    ["24/02/2026", "Inversion 1", "Moderate Pitt", "A", 0.0, 9.9750, 2382.5479, 0.0, 23766.0],
+    ["24/02/2026", "Inversion 1", "Conservative Clooney", "A", 0.0, 13.0380, 1628.6182, 0.0, 21234.0],
+    ["21/01/2026", "Alto Riesgo", "Risky Norris", "A", 0.0, 60.2254, 3320.8580, 0.0, 200000.0],
+    ["19/01/2026", "Alto Riesgo", "Risky Norris", "A", 0.0, 59.4286, 3365.3855, 0.0, 200000.0],
+    ["02/12/2025", "Inversion 1", "Moderate Pitt", "A", 0.0, 17.9593, 2470.7016, 0.0, 44372.0],
+    ["02/12/2025", "Inversion 1", "Conservative Clooney", "A", 0.0, 21.8268, 1632.3045, 0.0, 35628.0],
+    ["08/10/2025", "Inversion 1", "Moderate Pitt", "A", 0.0, 23.4173, 2487.0936, 0.0, 58241.0],
+    ["08/10/2025", "Inversion 1", "Conservative Clooney", "A", 0.0, 25.6220, 1629.8091, 0.0, 41759.0],
+    ["06/10/2025", "Reserva", "Very Conservative Streep", "A", 0.0, 42.9358, 1397.4355, 0.0, 60000.0],
+    ["03/10/2025", "Alto Riesgo", "Risky Norris", "A", 14.4504, 0.0, 3460.1206, 50000.0, 0.0],
 ]
 
 

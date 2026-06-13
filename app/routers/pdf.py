@@ -91,9 +91,8 @@ async def upload_pdf_mutual_funds(
             data = extract_mutual_funds(pdf)
     except Exception:
         raise HTTPException(status_code=400, detail="Error al analizar el archivo, archivo no válido")
-    # Generar las Transactions y Dividends
+    # Generar las Transactions (aportes/rescates de fondos mutuos)
     await pdf_repo.save_mutual_funds(db, user.clerk_id, data, account_id)
-    await pdf_repo.stocks_etf_1(db, user.clerk_id, data, account_id)
     # Reconstruir portafolio en base a eso (positions + snapshot portafolio)
     try:
         n_snapshots, n_positions = await reconstruct_user_portfolio(db, user.clerk_id)

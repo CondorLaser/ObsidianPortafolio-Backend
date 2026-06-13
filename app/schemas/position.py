@@ -3,6 +3,7 @@ from datetime import datetime
 from decimal import Decimal
 
 from pydantic import BaseModel, ConfigDict
+from app.schemas.asset import AssetRead
 
 
 class PositionDerived(BaseModel):
@@ -18,6 +19,7 @@ class PositionDerived(BaseModel):
     last_price: Decimal | None
     market_value: Decimal | None
     unrealized_pnl: Decimal | None
+    asset: AssetRead
 
 
 class PositionRead(BaseModel):
@@ -36,3 +38,4 @@ class PositionRead(BaseModel):
     total_fees: Decimal | None
     last_transaction_at: datetime | None
     updated_at: datetime | None
+    asset: AssetRead

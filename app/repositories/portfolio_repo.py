@@ -143,13 +143,23 @@ async def compute_user_series(
                 st.invested += qty * price + fee
                 st.total_fees += fee
             elif tx.kind == TransactionKind.sell:
-                # realized pnl al avg_cost actual
+                # No vender más de lo disponible. Con data incompleta (PDF
+                # parcial, o ventas cuya compra no está en el certificado) el
+                # qty se iría negativo y el avg_cost saldría imposible (ej.
+                # 4297 cuando el valor real es ~1637), contaminando invested
+                # y el PnL. Se acota la venta a la tenencia y se avisa.
                 avg = st.avg_cost or ZERO
-                st.realized_pnl += qty * (price - avg)
-                # reducir invested proporcionalmente
-                if st.qty > 0:
-                    st.invested -= avg * qty
-                st.qty -= qty
+                sell_qty = min(qty, st.qty) if st.qty > ZERO else ZERO
+                if sell_qty < qty:
+                    print(
+                        f"[warn] venta excede tenencia (asset={tx.asset_id}, "
+                        f"account={tx.account_id}): vende {qty}, disponible "
+                        f"{st.qty}. Se ignora el exceso (data incompleta)."
+                    )
+                # realized pnl solo sobre lo realmente vendido, al avg_cost actual
+                st.realized_pnl += sell_qty * (price - avg)
+                st.invested -= avg * sell_qty
+                st.qty -= sell_qty
                 st.total_fees += fee
             elif tx.kind == TransactionKind.dividend:
                 # En este schema, tx.quantity con kind=dividend representa el
@@ -369,7 +379,14 @@ async def get_dashboard_data(
     # Conviene leer de `positions` directamente y joinear con `assets` para
     # symbol/name + último asset_price para market_value. Se mantiene como
     # estaba para no romper el shape de PositionDerived.
-    positions = await position_repo.list_for_user(session, clerk_id)
+    #
+    # Usa list_for_user_portfolio (derivada en runtime → PositionDerived con
+    # last_price/market_value/unrealized_pnl). NO usar list_for_user, que tras
+    # la PR #29 devuelve la posición materializada (shape distinto). El dashboard
+    # quiere TODAS las posiciones activas, así que se sube el limit.
+    positions = await position_repo.list_for_user_portfolio(
+        session, clerk_id, limit=10_000
+    )
 
     # summary: si hay UNA sola currency llenamos los Decimal escalares;
     # si hay múltiples, NULL en escalares y el frontend usa los *_by_currency.
