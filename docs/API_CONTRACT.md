@@ -17,8 +17,8 @@
 | **misc** | 2 (`/`, `/protected`) |
 | **onboarding** | 1 (`/risk_profile`) |
 | **pdf** | 3 (`/pdf/extract_mutual_funds`, `/pdf/extract_stocks_etf_1`, `/pdf/extract_stocks_etf_2`) |
-| **portfolio** | 4 (`/portfolio/dashboard`, `/portfolio/rebuild`, `/portfolio/summary`, `/portfolio/trend`) |
-| **positions** | 3 (`/positions`, `/positions/asset/{asset_id}`, `/positions/portfolio`) |
+| **portfolio** | 6 (`/portfolio/dashboard`, `/portfolio/rebuild`, `/portfolio/summary`, `/portfolio/trend`, `/portfolio/metrics/daily`, `/portfolio/metrics/monthly`) |
+| **positions** | 4 (`/positions`, `/positions/asset/{asset_id}`, `/positions/portfolio`, `/positions/metrics/monthly`) |
 | **preferences** | 2 (`/preferences`) |
 | **prices** | 2 (`/assets/{asset_id}/prices`) |
 | **profile** | 2 (`/profile`) |
