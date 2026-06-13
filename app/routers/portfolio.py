@@ -76,7 +76,7 @@ async def get_portfolio_trend(
 # del router positions
 
 @router.post("/metrics/daily")
-async def get_daily_metrics(
+async def post_daily_metrics(
     user: Profile = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -112,8 +112,26 @@ async def get_daily_metrics(
 
     return metrics
 
+@router.get("/metrics/daily")
+async def get_daily_metrics(
+    user: Profile = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        text("""
+            SELECT *
+            FROM portfolio_daily_metrics
+            WHERE user_id = :user_id
+            ORDER BY date DESC
+        """),
+        {"user_id": user.clerk_id},
+    )
+
+    metric = result.mappings().first()
+    return metric
+
 @router.post("/metrics/monthly")
-async def get_monthly_metrics(
+async def post_monthly_metrics(
     user: Profile = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -147,3 +165,22 @@ async def get_monthly_metrics(
     await db.commit()
 
     return metrics
+
+@router.get("/metrics/monthly")
+async def get_monthly_metrics(
+    user: Profile = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        text("""
+            SELECT *
+            FROM portfolio_monthly_metrics
+            WHERE user_id = :user_id
+            ORDER BY date DESC
+        """),
+        {"user_id": user.clerk_id},
+    )
+
+    metric = result.mappings().first()
+    return metric
+
