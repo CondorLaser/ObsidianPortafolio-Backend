@@ -9,24 +9,27 @@ from dotenv import load_dotenv
 def inmmediate_mail(to_email, active_alerts):
     load_dotenv()
     
-    # Colores según tipo de alerta
-    alert_colors = {
-        "stop_loss":  {"bg": "#fcebeb", "border": "#f7c1c1", "title": "#a32d2d", "text": "#501313", "value": "#a32d2d", "threshold": "#791f1f"},
-        "volatilidad":{"bg": "#faeeda", "border": "#fac775", "title": "#854f0b", "text": "#412402", "value": "#854f0b", "threshold": "#633806"},
-        "drawdown":   {"bg": "#e6f1fb", "border": "#b5d4f4", "title": "#185fa5", "text": "#042c53", "value": "#185fa5", "threshold": "#0c447c"},
+
+    default_color = {
+        "bg": "#f8e8e8",
+        "border": "#d9b8b8",
+        "title": "#a14d4d",
+        "text": "#2c2c2a",
+        "value": "#a14d4d",
+        "threshold": "#7a3333"
     }
-    default_color = {"bg": "#f1efe8", "border": "#d3d1c7", "title": "#5f5e5a", "text": "#2c2c2a", "value": "#5f5e5a", "threshold": "#444441"}
 
     alert_cards = ""
     for alert in active_alerts:
-        alert_type, trigger_value, threshold_value = alert[0], alert[1], alert[2]
-        c = alert_colors.get(alert_type.lower(), default_color)
+        alert_type, trigger_value, threshold_value, message = alert[0], alert[1], alert[2], alert[3]
+        c = default_color
 
         alert_cards += f"""
         <div style="border: 0.5px solid {c['border']}; border-radius: 8px; padding: 14px 16px; background: {c['bg']}; margin-bottom: 10px;">
             <div style="display: flex; justify-content: space-between; align-items: flex-start;">
                 <div>
                     <span style="font-size: 11px; font-weight: 600; color: {c['title']}; text-transform: uppercase; letter-spacing: 0.06em;">{alert_type}</span>
+                    <p style="margin: 2px 0 0; font-size: 12px; color: {c['threshold']};"> {message}</p>
                 </div>
                 <div style="text-align: right; margin-left: 16px;">
                     <p style="margin: 0; font-size: 15px; font-weight: 600; color: {c['value']};">{trigger_value}</p>
@@ -78,8 +81,12 @@ def inmmediate_mail(to_email, active_alerts):
         print(response.status_code)
         print(response.body)
         print(response.headers)
+        return response.status_code
     except Exception as e:
         print(e.message)
+        return e.message
 
 
-inmmediate_mail("fschiappacasse@uc.cl",  [["alerta1", "4", "5"], ["alerta2", "8.9", "77"]])
+
+
+#inmmediate_mail("fschiappacasse@uc.cl",  [["alerta1", "4", "5"], ["alerta2", "8.9", "77"]])
