@@ -2,7 +2,7 @@
 
 > ⚙️ Generado automáticamente desde `/openapi.json`. **NO editar a mano** — re-correr `scripts/generate_api_contract.py`.
 
-**Total endpoints**: 32  
+**Total endpoints**: 34  
 **Base URL local**: `http://localhost:8000` (sin `/api/v1`)  
 **Auth**: Bearer JWT Clerk en header `Authorization` (excepto rutas públicas)
 
@@ -17,8 +17,8 @@
 | **misc** | 2 (`/`, `/protected`) |
 | **onboarding** | 1 (`/risk_profile`) |
 | **pdf** | 3 (`/pdf/extract_mutual_funds`, `/pdf/extract_stocks_etf_1`, `/pdf/extract_stocks_etf_2`) |
-| **portfolio** | 4 (`/portfolio/dashboard`, `/portfolio/rebuild`, `/portfolio/summary`, `/portfolio/trend`) |
-| **positions** | 1 (`/positions`) |
+| **portfolio** | 6 (`/portfolio/dashboard`, `/portfolio/rebuild`, `/portfolio/summary`, `/portfolio/trend`, `/portfolio/metrics/daily`, `/portfolio/metrics/monthly`) |
+| **positions** | 4 (`/positions`, `/positions/asset/{asset_id}`, `/positions/portfolio`, `/positions/metrics/monthly`) |
 | **preferences** | 2 (`/preferences`) |
 | **prices** | 2 (`/assets/{asset_id}/prices`) |
 | **profile** | 2 (`/profile`) |
@@ -192,6 +192,7 @@ array of PositionRead:
     total_fees: string | null
     last_transaction_at: string (date-time) | null
     updated_at: string (date-time) | null
+    asset: `AssetRead`
   }
 ```
 
@@ -659,6 +660,85 @@ List Positions
 **Response 200** — Successful Response:
 
 ```
+array of PositionRead:
+{
+    id: string (uuid)
+    account_id: string (uuid)
+    asset_id: string (uuid)
+    quantity: string | null
+    avg_cost: string | null
+    realized_pnl: string | null
+    total_dividends: string | null
+    total_fees: string | null
+    last_transaction_at: string (date-time) | null
+    updated_at: string (date-time) | null
+    asset: `AssetRead`
+  }
+```
+
+**Response 422** — Validation Error:
+
+```
+HTTPValidationError: {
+    detail?: array of `ValidationError`
+  }
+```
+
+---
+
+### `GET` `/positions/asset/{asset_id}`
+
+List Positions By Asset
+
+**Path params**:
+
+- `asset_id`: string (uuid)
+
+**Query params**:
+
+- `skip` (integer, optional) — Registros a saltar
+- `limit` (integer, optional) — Máx. registros retornar
+
+**Response 200** — Successful Response:
+
+```
+PositionRead: {
+    id: string (uuid)
+    account_id: string (uuid)
+    asset_id: string (uuid)
+    quantity: string | null
+    avg_cost: string | null
+    realized_pnl: string | null
+    total_dividends: string | null
+    total_fees: string | null
+    last_transaction_at: string (date-time) | null
+    updated_at: string (date-time) | null
+    asset: `AssetRead`
+  }
+```
+
+**Response 422** — Validation Error:
+
+```
+HTTPValidationError: {
+    detail?: array of `ValidationError`
+  }
+```
+
+---
+
+### `GET` `/positions/portfolio`
+
+List Positions
+
+**Query params**:
+
+- `skip` (integer, optional) — Registros a saltar
+- `limit` (integer, optional) — Máx. registros retornar
+
+**Response 200** — Successful Response:
+
+```
 array of PositionDerived:
 {
     account_id: string (uuid)
@@ -670,6 +750,7 @@ array of PositionDerived:
     last_price: string | null
     market_value: string | null
     unrealized_pnl: string | null
+    asset: `AssetRead`
   }
 ```
 
