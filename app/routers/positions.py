@@ -1,9 +1,8 @@
-from http.client import HTTPException
-
 from sqlalchemy import text
 import uuid
+from datetime import date as date_type
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.auth import get_current_user
@@ -100,32 +99,46 @@ async def get_daily_positions_metrics(
     position_id: uuid.UUID,
     user: Profile = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
+    trend_from: date_type | None = Query(None),
+    trend_to: date_type | None = Query(None),
 ):
+    query = """
+        SELECT pdm.*
+        FROM position_daily_metrics pdm
+        JOIN positions p
+            ON p.id = pdm.position_id
+        JOIN accounts a
+            ON a.id = p.account_id
+        WHERE pdm.position_id = :position_id
+          AND a.user_id = :user_id
+    """
+
+    params = {
+        "position_id": position_id,
+        "user_id": user.clerk_id,
+    }
+
+    if trend_from:
+        query += " AND pdm.date >= :trend_from"
+        params["trend_from"] = trend_from
+
+    if trend_to:
+        query += " AND pdm.date <= :trend_to"
+        params["trend_to"] = trend_to
+
+    query += " ORDER BY pdm.date DESC"
+
     result = await db.execute(
-        text("""
-            SELECT pdm.*
-            FROM position_daily_metrics pdm
-            JOIN positions p
-                ON p.id = pdm.position_id
-            JOIN accounts a
-                ON a.id = p.account_id
-            WHERE pdm.position_id = :position_id
-              AND a.user_id = :user_id
-            ORDER BY pdm.date DESC
-            LIMIT 1
-        """),
-        {
-            "position_id": position_id,
-            "user_id": user.clerk_id,
-        },
+        text(query),
+        params,
     )
 
-    metric = result.mappings().first()
+    metrics = result.mappings().all()
 
-    if not metric:
+    if not metrics:
         raise HTTPException(
             status_code=404,
             detail="Position daily metrics not found"
         )
 
-    return metric
+    return metrics
