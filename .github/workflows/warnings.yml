@@ -1,12 +1,12 @@
-name: Sync Fund Etf Prices
+name: Users Warnings
 
 
 on:
-  # push:
-  #   branches:
-  #     - feat/asset-metrics-monthly-and-mailer #solo para testeo
+  push:
+    branches:
+      - feat/asset-metrics-monthly-and-mailer #solo para testeo
   schedule:
-    - cron: "0 5 * * *"  # todos los días en la noche
+      - cron: "0 10 * * *"  
   workflow_dispatch:      
 
 jobs:
@@ -26,5 +26,4 @@ jobs:
       - name: Correr script
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          TWELVEDATA_API_KEY: ${{ secrets.TWELVEDATA_API_KEY }}
-        run: python sync_fund_etf_prices.py
+        run: python scripts_ghactions/warnings.py
