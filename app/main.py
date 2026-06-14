@@ -22,7 +22,7 @@ from app.routers import (
     transactions,
     webhooks,
     warnings,
-)
+) 
 
 settings = get_settings()
 
