@@ -7,6 +7,7 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, TimestampMixin
+from sqlalchemy import UniqueConstraint
 
 if TYPE_CHECKING:
     from app.models.asset_metrics import AssetDailyMetric, AssetMonthlyMetric
@@ -24,6 +25,9 @@ class AssetKind(str, enum.Enum):
 
 class Asset(Base, TimestampMixin):
     __tablename__ = "assets"
+    __table_args__ = (
+        UniqueConstraint("symbol", "name", name="assets_symbol_name_key"),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
