@@ -116,19 +116,33 @@ async def post_daily_metrics(
 async def get_daily_metrics(
     user: Profile = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
+    trend_from: date_type | None = Query(None), 
+    trend_to: date_type | None = Query(None)
 ):
+    query = """
+        SELECT *
+        FROM portfolio_daily_metrics
+        WHERE user_id = :user_id
+    """
+
+    params = {"user_id": user.clerk_id}
+
+    if trend_from:
+        query += " AND date >= :trend_from"
+        params["trend_from"] = trend_from
+
+    if trend_to:
+        query += " AND date <= :trend_to"
+        params["trend_to"] = trend_to
+
+    query += " ORDER BY date DESC"
+
     result = await db.execute(
-        text("""
-            SELECT *
-            FROM portfolio_daily_metrics
-            WHERE user_id = :user_id
-            ORDER BY date DESC
-        """),
-        {"user_id": user.clerk_id},
+        text(query),
+        params,
     )
 
-    metric = result.mappings().first()
-    return metric
+    return result.mappings().all()
 
 @router.post("/metrics/monthly")
 async def post_monthly_metrics(
@@ -170,17 +184,30 @@ async def post_monthly_metrics(
 async def get_monthly_metrics(
     user: Profile = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
+    trend_from: date_type | None = Query(None),
+    trend_to: date_type | None = Query(None),
 ):
+    query = """
+        SELECT *
+        FROM portfolio_monthly_metrics
+        WHERE user_id = :user_id
+    """
+
+    params = {"user_id": user.clerk_id}
+
+    if trend_from:
+        query += " AND date >= :trend_from"
+        params["trend_from"] = trend_from
+
+    if trend_to:
+        query += " AND date <= :trend_to"
+        params["trend_to"] = trend_to
+
+    query += " ORDER BY date DESC"
+
     result = await db.execute(
-        text("""
-            SELECT *
-            FROM portfolio_monthly_metrics
-            WHERE user_id = :user_id
-            ORDER BY date DESC
-        """),
-        {"user_id": user.clerk_id},
+        text(query),
+        params,
     )
 
-    metric = result.mappings().first()
-    return metric
-
+    return result.mappings().all()
