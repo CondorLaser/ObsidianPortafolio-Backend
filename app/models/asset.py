@@ -39,7 +39,7 @@ class Asset(Base, TimestampMixin):
         Enum(AssetKind, name="asset_kind"), nullable=False
     )
     currency: Mapped[str] = mapped_column(
-        String(3), nullable=False, server_default="USD"
+        String(3), nullable=True, server_default="USD"
     )
 
     prices: Mapped[list["AssetPrice"]] = relationship(

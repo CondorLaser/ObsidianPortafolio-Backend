@@ -23,6 +23,7 @@ from scripts.processing_pdf import (
     extract_stocks_etf_2,
 )
 from app.repositories.portfolio_repo import reconstruct_user_portfolio
+from scripts.warnings_module import warnings
 
 
 router = APIRouter(prefix="/pdf", tags=["pdf"])
@@ -55,18 +56,26 @@ async def upload_pdf_stocks_etf_1(
     # Reconstruir portafolio en base a eso (positions + snapshot portafolio)
     try:
         n_snapshots, n_positions = await reconstruct_user_portfolio(db, user.clerk_id)
+        
+        # Generate warnings based on updated portfolio
+        warnings_found = await warnings(db, user.clerk_id, send_mail=True)
 
         print({"reconstruction_details": {
                 "snapshots_updated": n_snapshots,
                 "positions_updated": n_positions
             },
-            "processed_data": dict_processed_data})
+            "processed_data": dict_processed_data,
+            "warnings_generated": len(warnings_found)})
         
         return {
             "message": "Certificado de Transacciones procesado, transacciones y portafolio reconstruido con éxito",
             "reconstruction_details": {
                 "snapshots_updated": n_snapshots,
                 "positions_updated": n_positions
+            },
+            "warnings": {
+                "count": len(warnings_found),
+                "items": warnings_found
             },
             "processed_data": dict_processed_data
         }
@@ -96,11 +105,19 @@ async def upload_pdf_mutual_funds(
     # Reconstruir portafolio en base a eso (positions + snapshot portafolio)
     try:
         n_snapshots, n_positions = await reconstruct_user_portfolio(db, user.clerk_id)
+        
+        # Generate warnings based on updated portfolio
+        warnings_found = await warnings(db, user.clerk_id, send_mail=True)
+        
         return {
             "message": "Certificado de Transacciones procesado, transacciones y portafolio reconstruido con éxito",
             "reconstruction_details": {
                 "snapshots_updated": n_snapshots,
                 "positions_updated": n_positions
+            },
+            "warnings": {
+                "count": len(warnings_found),
+                "items": warnings_found
             }
         }
     except Exception as e:

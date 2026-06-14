@@ -15,6 +15,7 @@ from app.models.position_metrics import PositionDailyMetric
 from app.models.transaction import Transaction, TransactionKind
 from app.models.user import Profile, RiskProfile, User
 from app.models.user_preference import UserPreference
+from app.models.alert import Alert
 
 __all__ = [
     "Base",
