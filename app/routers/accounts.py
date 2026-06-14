@@ -7,7 +7,7 @@ from app.core.auth import get_current_user
 from app.core.db import get_db
 from app.models.user import Profile
 from app.repositories import account_metrics_repo, account_repo
-from app.schemas.account import AccountCreate, AccountDetailRead, AccountRead
+from app.schemas.account import AccountCreate, AccountDetailRead, AccountRead, AccountWithCountersRead
 from app.schemas.account_metrics import AccountMetricsRead
 from app.schemas.dividend import DividendRead
 from app.schemas.position import PositionRead
@@ -25,6 +25,14 @@ async def list_accounts(
 ):
     return await account_repo.list_for_user(db, user.clerk_id, skip=skip, limit=limit)
 
+@router.get("/with-counters", response_model=list[AccountWithCountersRead])
+async def list_accounts(
+    user: Profile = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    skip: int = Query(0, ge=0, description="Registros a saltar"),
+    limit: int = Query(10, ge=1, le=100, description="Máx. registros retornar"),
+):
+    return await account_repo.list_for_user_with_counters(db, user.clerk_id, skip=skip, limit=limit)
 
 # Las rutas nested (/accounts/<sub>/{id}) van ANTES de /{account_id} para que
 # FastAPI no las matchee con el path catch-all del detail.
