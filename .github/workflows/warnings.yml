@@ -25,5 +25,5 @@ jobs:
 
       - name: Correr script
         env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DATABASE_URL:  ${{ secrets.DATABASE_URL_ASYNC }}
         run: python scripts_ghactions/warnings_users.py
