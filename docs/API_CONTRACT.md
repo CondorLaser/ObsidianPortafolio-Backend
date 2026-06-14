@@ -2,7 +2,7 @@
 
 > ⚙️ Generado automáticamente desde `/openapi.json`. **NO editar a mano** — re-correr `scripts/generate_api_contract.py`.
 
-**Total endpoints**: 34  
+**Total endpoints**: 42  
 **Base URL local**: `http://localhost:8000` (sin `/api/v1`)  
 **Auth**: Bearer JWT Clerk en header `Authorization` (excepto rutas públicas)
 
@@ -17,12 +17,13 @@
 | **misc** | 2 (`/`, `/protected`) |
 | **onboarding** | 1 (`/risk_profile`) |
 | **pdf** | 3 (`/pdf/extract_mutual_funds`, `/pdf/extract_stocks_etf_1`, `/pdf/extract_stocks_etf_2`) |
-| **portfolio** | 6 (`/portfolio/dashboard`, `/portfolio/rebuild`, `/portfolio/summary`, `/portfolio/trend`, `/portfolio/metrics/daily`, `/portfolio/metrics/monthly`) |
-| **positions** | 4 (`/positions`, `/positions/asset/{asset_id}`, `/positions/portfolio`, `/positions/metrics/monthly`) |
+| **portfolio** | 8 (`/portfolio/dashboard`, `/portfolio/metrics/daily`, `/portfolio/metrics/monthly`, `/portfolio/rebuild`, `/portfolio/summary`, `/portfolio/trend`) |
+| **positions** | 5 (`/positions`, `/positions/asset/{asset_id}`, `/positions/metrics/daily/{position_id}`, `/positions/portfolio`) |
 | **preferences** | 2 (`/preferences`) |
 | **prices** | 2 (`/assets/{asset_id}/prices`) |
 | **profile** | 2 (`/profile`) |
 | **transactions** | 2 (`/transactions`) |
+| **warnings** | 2 (`/warnings`, `/warnings/{alert_id}`) |
 | **webhooks** | 1 (`/webhooks/clerk`) |
 
 
@@ -586,6 +587,30 @@ HTTPValidationError: {
 
 ---
 
+### `GET` `/portfolio/metrics/daily`
+
+Get Daily Metrics
+
+---
+
+### `POST` `/portfolio/metrics/daily`
+
+Post Daily Metrics
+
+---
+
+### `GET` `/portfolio/metrics/monthly`
+
+Get Monthly Metrics
+
+---
+
+### `POST` `/portfolio/metrics/monthly`
+
+Post Monthly Metrics
+
+---
+
 ### `POST` `/portfolio/rebuild`
 
 Rebuild Portfolio
@@ -688,34 +713,53 @@ HTTPValidationError: {
 
 ### `GET` `/positions/asset/{asset_id}`
 
-List Positions By Asset
+Get Position By Asset
 
 **Path params**:
 
 - `asset_id`: string (uuid)
 
-**Query params**:
-
-- `skip` (integer, optional) — Registros a saltar
-- `limit` (integer, optional) — Máx. registros retornar
-
 **Response 200** — Successful Response:
 
 ```
-PositionRead: {
-    id: string (uuid)
-    account_id: string (uuid)
-    asset_id: string (uuid)
-    quantity: string | null
-    avg_cost: string | null
-    realized_pnl: string | null
-    total_dividends: string | null
-    total_fees: string | null
-    last_transaction_at: string (date-time) | null
-    updated_at: string (date-time) | null
-    asset: `AssetRead`
+`PositionRead` | null
+```
+
+**Response 422** — Validation Error:
+
+```
+HTTPValidationError: {
+    detail?: array of `ValidationError`
   }
 ```
+
+---
+
+### `GET` `/positions/metrics/daily/{position_id}`
+
+Get Daily Positions Metrics
+
+**Path params**:
+
+- `position_id`: string (uuid)
+
+**Response 422** — Validation Error:
+
+```
+HTTPValidationError: {
+    detail?: array of `ValidationError`
+  }
+```
+
+---
+
+### `POST` `/positions/metrics/daily/{position_id}`
+
+Post Daily Positions Metrics
+
+**Path params**:
+
+- `position_id`: string (uuid)
 
 **Response 422** — Validation Error:
 
@@ -729,7 +773,7 @@ HTTPValidationError: {
 
 ### `GET` `/positions/portfolio`
 
-List Positions
+List Positions Portfolio
 
 **Query params**:
 
@@ -1033,6 +1077,94 @@ TransactionRead: {
     id: string (uuid)
     created_at: string (date-time)
     asset: `AssetRead`
+  }
+```
+
+**Response 422** — Validation Error:
+
+```
+HTTPValidationError: {
+    detail?: array of `ValidationError`
+  }
+```
+
+---
+
+
+## warnings
+
+### `GET` `/warnings`
+
+List Warnings
+
+**Query params**:
+
+- `is_read` (boolean | null, optional) — Filtrar por avisos leídos
+- `is_active` (boolean | null, optional) — Filtrar por avisos activos
+
+**Response 200** — Successful Response:
+
+```
+array of AlertRead:
+{
+    id: string (uuid)
+    user_id: string
+    type: string
+    trigger_field: string
+    trigger_value: string
+    threshold_value: string
+    msg: string
+    is_read: boolean
+    created_at: string (date-time)
+    notified_at: string (date-time) | null
+    last_triggered: string (date) | null
+    is_active: boolean
+  }
+```
+
+**Response 422** — Validation Error:
+
+```
+HTTPValidationError: {
+    detail?: array of `ValidationError`
+  }
+```
+
+---
+
+### `PATCH` `/warnings/{alert_id}`
+
+Update Warning
+
+**Path params**:
+
+- `alert_id`: string (uuid)
+
+**Request body** (application/json):
+
+```
+AlertUpdate: {
+    is_read?: boolean | null
+    is_active?: boolean | null
+  }
+```
+
+**Response 200** — Successful Response:
+
+```
+AlertRead: {
+    id: string (uuid)
+    user_id: string
+    type: string
+    trigger_field: string
+    trigger_value: string
+    threshold_value: string
+    msg: string
+    is_read: boolean
+    created_at: string (date-time)
+    notified_at: string (date-time) | null
+    last_triggered: string (date) | null
+    is_active: boolean
   }
 ```
 
