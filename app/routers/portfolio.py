@@ -76,7 +76,7 @@ async def get_portfolio_trend(
 # del router positions
 
 @router.post("/metrics/daily")
-async def post_daily_metrics(
+async def post_daily_portfolio_metrics(
     user: Profile = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -113,7 +113,7 @@ async def post_daily_metrics(
     return metrics
 
 @router.get("/metrics/daily")
-async def get_daily_metrics(
+async def get_daily_portfolio_metrics(
     user: Profile = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
     trend_from: date_type | None = Query(None), 
@@ -145,7 +145,7 @@ async def get_daily_metrics(
     return result.mappings().all()
 
 @router.post("/metrics/monthly")
-async def post_monthly_metrics(
+async def post_monthly_portfolio_metrics(
     user: Profile = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -181,7 +181,7 @@ async def post_monthly_metrics(
     return metrics
 
 @router.get("/metrics/monthly")
-async def get_monthly_metrics(
+async def get_monthly_portfolio_metrics(
     user: Profile = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
     trend_from: date_type | None = Query(None),

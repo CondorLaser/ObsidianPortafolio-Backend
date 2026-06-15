@@ -23,7 +23,7 @@ from scripts.processing_pdf import (
     extract_stocks_etf_2,
 )
 from app.repositories.portfolio_repo import reconstruct_user_portfolio
-
+from app.routers.portfolio import post_daily_portfolio_metrics, post_monthly_portfolio_metrics
 
 router = APIRouter(prefix="/pdf", tags=["pdf"])
 
@@ -55,6 +55,9 @@ async def upload_pdf_stocks_etf_1(
     # Reconstruir portafolio en base a eso (positions + snapshot portafolio)
     try:
         n_snapshots, n_positions = await reconstruct_user_portfolio(db, user.clerk_id)
+
+        await post_daily_portfolio_metrics(user, db)
+        await post_monthly_portfolio_metrics(user, db)
 
         print({"reconstruction_details": {
                 "snapshots_updated": n_snapshots,
@@ -96,6 +99,10 @@ async def upload_pdf_mutual_funds(
     # Reconstruir portafolio en base a eso (positions + snapshot portafolio)
     try:
         n_snapshots, n_positions = await reconstruct_user_portfolio(db, user.clerk_id)
+
+        await post_daily_portfolio_metrics(user, db)
+        await post_monthly_portfolio_metrics(user, db)
+        
         return {
             "message": "Certificado de Transacciones procesado, transacciones y portafolio reconstruido con éxito",
             "reconstruction_details": {
