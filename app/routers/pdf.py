@@ -54,7 +54,7 @@ async def upload_pdf_stocks_etf_1(
     dict_processed_data = await pdf_repo.stocks_etf_1(db, user.clerk_id, data, account_id)
     # Reconstruir portafolio en base a eso (positions + snapshot portafolio)
     try:
-        n_snapshots, n_positions = await reconstruct_user_portfolio(db, user.clerk_id)
+        n_snapshots, n_positions = await reconstruct_user_portfolio(db, user)
 
         await post_daily_portfolio_metrics(user, db)
         await post_monthly_portfolio_metrics(user, db)
@@ -98,7 +98,7 @@ async def upload_pdf_mutual_funds(
     await pdf_repo.save_mutual_funds(db, user.clerk_id, data, account_id)
     # Reconstruir portafolio en base a eso (positions + snapshot portafolio)
     try:
-        n_snapshots, n_positions = await reconstruct_user_portfolio(db, user.clerk_id)
+        n_snapshots, n_positions = await reconstruct_user_portfolio(db, user)
 
         await post_daily_portfolio_metrics(user, db)
         await post_monthly_portfolio_metrics(user, db)
