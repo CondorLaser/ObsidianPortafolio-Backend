@@ -26,6 +26,7 @@ Uso:
 import argparse
 import os
 import statistics
+import uuid
 from collections import defaultdict
 from datetime import date
 from math import sqrt
@@ -34,6 +35,18 @@ import psycopg2
 from psycopg2.extras import execute_values
 
 TRADING_DAYS = 252
+
+
+def _fit(value, max_abs, label="", account_id=""):
+    """Devuelve None si el valor no cabe en su columna Numeric (evita que una
+    cuenta con data sucia reviente toda la corrida por 'numeric field overflow').
+    max_abs = límite por precisión/escala (ej. Numeric(8,6) -> 100)."""
+    if value is None:
+        return None
+    if abs(value) >= max_abs:
+        print(f"[warn] {label}={value} fuera de rango para {account_id[:8]} -> NULL")
+        return None
+    return value
 
 
 def connection_bdd():
@@ -156,7 +169,13 @@ def main() -> int:
         mdd = max_drawdown_twr(rets)
         pnl = pnls.get(account_id)
         last_date = pts[-1][0]
-        rows.append((account_id, last_date, pnl, mdd, vol))
+        # Acotar a los límites de cada columna Numeric (8,6)/(18,2).
+        rows.append((
+            account_id, last_date,
+            _fit(pnl, 1e16, "pnl", account_id),
+            _fit(mdd, 1e16, "max_drawdown", account_id),
+            _fit(vol, 100, "volatility", account_id),
+        ))
         print(f"{account_id:38}{str(last_date):>12}"
               f"{(pnl if pnl is not None else float('nan')):>16,.2f}"
               f"{mdd:>10.2f}{(vol if vol is not None else float('nan')):>12.4f}")
@@ -169,14 +188,17 @@ def main() -> int:
     account_ids = [r[0] for r in rows]
     if account_ids:
         cur.execute(
-            "DELETE FROM account_daily_metrics WHERE account_id = ANY(%s)",
+            "DELETE FROM account_daily_metrics WHERE account_id = ANY(%s::uuid[])",
             (account_ids,),
         )
+        # `id` no tiene default a nivel de BD → se genera acá (como en el resto
+        # de los INSERT crudos del repo).
+        rows_with_id = [(str(uuid.uuid4()), *r) for r in rows]
         execute_values(
             cur,
             "INSERT INTO account_daily_metrics "
-            "(account_id, date, pnl, max_drawdown, volatility) VALUES %s",
-            rows,
+            "(id, account_id, date, pnl, max_drawdown, volatility) VALUES %s",
+            rows_with_id,
         )
         conn.commit()
     print(f"\n  ✅ {len(rows)} filas escritas en account_daily_metrics.")

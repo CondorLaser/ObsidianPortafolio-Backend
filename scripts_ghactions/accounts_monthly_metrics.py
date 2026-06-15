@@ -21,6 +21,7 @@ Uso:
 import argparse
 import os
 import statistics
+import uuid
 from collections import defaultdict
 from datetime import date
 from math import sqrt
@@ -29,6 +30,17 @@ import psycopg2
 from psycopg2.extras import execute_values
 
 MONTHS = 12
+
+
+def _fit(value, max_abs, label="", account_id=""):
+    """Devuelve None si el valor no cabe en su columna Numeric (evita que una
+    cuenta con data sucia reviente toda la corrida por 'numeric field overflow')."""
+    if value is None:
+        return None
+    if abs(value) >= max_abs:
+        print(f"[warn] {label}={value} fuera de rango para {account_id[:8]} -> NULL")
+        return None
+    return value
 
 
 def connection_bdd():
@@ -235,7 +247,17 @@ def main() -> int:
         v = var_amount(monthly, pts[-1][1])
         corr = assets_correlation(cur, account_id)
         last_date = pts[-1][0]
-        rows.append((account_id, last_date, t, die, sh, v, so, corr))
+        # Acotar a los límites de cada columna: twr/dietz(10,8), sharpe/sortino(6,4),
+        # var(18,2), assets_correlation(5,4).
+        rows.append((
+            account_id, last_date,
+            _fit(t, 100, "twr", account_id),
+            _fit(die, 100, "dietz", account_id),
+            _fit(sh, 100, "sharpe_ratio", account_id),
+            _fit(v, 1e16, "var", account_id),
+            _fit(so, 100, "sortino", account_id),
+            _fit(corr, 10, "assets_correlation", account_id),
+        ))
 
         def f(x, p="{:>9.4f}"):
             return p.format(x) if x is not None else f"{'-':>9}"
@@ -250,15 +272,17 @@ def main() -> int:
     account_ids = [r[0] for r in rows]
     if account_ids:
         cur.execute(
-            "DELETE FROM account_monthly_metrics WHERE account_id = ANY(%s)",
+            "DELETE FROM account_monthly_metrics WHERE account_id = ANY(%s::uuid[])",
             (account_ids,),
         )
+        # `id` no tiene default a nivel de BD → se genera acá.
+        rows_with_id = [(str(uuid.uuid4()), *r) for r in rows]
         execute_values(
             cur,
             "INSERT INTO account_monthly_metrics "
-            "(account_id, date, twr, dietz, sharpe_ratio, var, sortino, assets_correlation) "
+            "(id, account_id, date, twr, dietz, sharpe_ratio, var, sortino, assets_correlation) "
             "VALUES %s",
-            rows,
+            rows_with_id,
         )
         conn.commit()
     print(f"\n  ✅ {len(rows)} filas escritas en account_monthly_metrics.")
