@@ -26,6 +26,7 @@ Uso:
 import argparse
 import os
 import statistics
+import uuid
 from collections import defaultdict
 from datetime import date
 from math import sqrt
@@ -169,14 +170,17 @@ def main() -> int:
     account_ids = [r[0] for r in rows]
     if account_ids:
         cur.execute(
-            "DELETE FROM account_daily_metrics WHERE account_id = ANY(%s)",
+            "DELETE FROM account_daily_metrics WHERE account_id = ANY(%s::uuid[])",
             (account_ids,),
         )
+        # `id` no tiene default a nivel de BD → se genera acá (como en el resto
+        # de los INSERT crudos del repo).
+        rows_with_id = [(str(uuid.uuid4()), *r) for r in rows]
         execute_values(
             cur,
             "INSERT INTO account_daily_metrics "
-            "(account_id, date, pnl, max_drawdown, volatility) VALUES %s",
-            rows,
+            "(id, account_id, date, pnl, max_drawdown, volatility) VALUES %s",
+            rows_with_id,
         )
         conn.commit()
     print(f"\n  ✅ {len(rows)} filas escritas en account_daily_metrics.")
