@@ -30,11 +30,12 @@ from dataclasses import dataclass
 from datetime import date as date_type, datetime, timedelta, timezone
 from decimal import Decimal
 
-from sqlalchemy import delete, insert, select
+from sqlalchemy import delete, func, insert, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.account import Account
 from app.models.asset_price import AssetPrice
+from app.models.dividend import Dividend
 from app.models.portfolio_snapshot import PortfolioSnapshot
 from app.models.position import Position
 from app.models.transaction import Transaction, TransactionKind
@@ -209,6 +210,23 @@ async def compute_user_series(
         )
 
         cur_date += timedelta(days=1)
+
+    # ── 3.5 Dividendos desde la tabla `dividends` ─────────────────────────
+    # La ingesta de PDF guarda los dividendos en la tabla `dividends`, NO como
+    # transactions kind=dividend, así que el acumulador del loop queda en 0.
+    # Se suman acá por (account, asset) para que total_dividends sea real.
+    div_q = await session.execute(
+        select(
+            Dividend.account_id,
+            Dividend.asset_id,
+            func.coalesce(func.sum(Dividend.net_amount), 0),
+        )
+        .join(Account, Account.id == Dividend.account_id)
+        .where(Account.user_id == clerk_id)
+        .group_by(Dividend.account_id, Dividend.asset_id)
+    )
+    for acc_id, ast_id, total in div_q:
+        pair_state[(acc_id, ast_id)].total_dividends += (total or ZERO)
 
     # ── 4. Estado latest de positions ─────────────────────────────────────
     now = datetime.now(tz=timezone.utc)
