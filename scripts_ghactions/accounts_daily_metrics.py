@@ -37,6 +37,18 @@ from psycopg2.extras import execute_values
 TRADING_DAYS = 252
 
 
+def _fit(value, max_abs, label="", account_id=""):
+    """Devuelve None si el valor no cabe en su columna Numeric (evita que una
+    cuenta con data sucia reviente toda la corrida por 'numeric field overflow').
+    max_abs = límite por precisión/escala (ej. Numeric(8,6) -> 100)."""
+    if value is None:
+        return None
+    if abs(value) >= max_abs:
+        print(f"[warn] {label}={value} fuera de rango para {account_id[:8]} -> NULL")
+        return None
+    return value
+
+
 def connection_bdd():
     conn = psycopg2.connect(os.environ["DATABASE_URL"])
     return conn, conn.cursor()
@@ -157,7 +169,13 @@ def main() -> int:
         mdd = max_drawdown_twr(rets)
         pnl = pnls.get(account_id)
         last_date = pts[-1][0]
-        rows.append((account_id, last_date, pnl, mdd, vol))
+        # Acotar a los límites de cada columna Numeric (8,6)/(18,2).
+        rows.append((
+            account_id, last_date,
+            _fit(pnl, 1e16, "pnl", account_id),
+            _fit(mdd, 1e16, "max_drawdown", account_id),
+            _fit(vol, 100, "volatility", account_id),
+        ))
         print(f"{account_id:38}{str(last_date):>12}"
               f"{(pnl if pnl is not None else float('nan')):>16,.2f}"
               f"{mdd:>10.2f}{(vol if vol is not None else float('nan')):>12.4f}")

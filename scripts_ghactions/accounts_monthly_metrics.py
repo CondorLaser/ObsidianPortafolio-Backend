@@ -32,6 +32,17 @@ from psycopg2.extras import execute_values
 MONTHS = 12
 
 
+def _fit(value, max_abs, label="", account_id=""):
+    """Devuelve None si el valor no cabe en su columna Numeric (evita que una
+    cuenta con data sucia reviente toda la corrida por 'numeric field overflow')."""
+    if value is None:
+        return None
+    if abs(value) >= max_abs:
+        print(f"[warn] {label}={value} fuera de rango para {account_id[:8]} -> NULL")
+        return None
+    return value
+
+
 def connection_bdd():
     conn = psycopg2.connect(os.environ["DATABASE_URL"])
     return conn, conn.cursor()
@@ -236,7 +247,17 @@ def main() -> int:
         v = var_amount(monthly, pts[-1][1])
         corr = assets_correlation(cur, account_id)
         last_date = pts[-1][0]
-        rows.append((account_id, last_date, t, die, sh, v, so, corr))
+        # Acotar a los límites de cada columna: twr/dietz(10,8), sharpe/sortino(6,4),
+        # var(18,2), assets_correlation(5,4).
+        rows.append((
+            account_id, last_date,
+            _fit(t, 100, "twr", account_id),
+            _fit(die, 100, "dietz", account_id),
+            _fit(sh, 100, "sharpe_ratio", account_id),
+            _fit(v, 1e16, "var", account_id),
+            _fit(so, 100, "sortino", account_id),
+            _fit(corr, 10, "assets_correlation", account_id),
+        ))
 
         def f(x, p="{:>9.4f}"):
             return p.format(x) if x is not None else f"{'-':>9}"
