@@ -1,4 +1,3 @@
-from sqlalchemy import text
 import uuid
 from datetime import date as date_type
 
@@ -10,7 +9,7 @@ from app.core.db import get_db
 from app.models.user import Profile
 from app.repositories import position_repo
 from app.schemas.position import PositionDerived, PositionRead
-from app.metrics.positions import calculate_position_daily_metrics
+from app.repositories import position_metrics_repo
 
 router = APIRouter(prefix="/positions", tags=["positions"])
 
@@ -45,75 +44,23 @@ async def list_positions(
     return await position_repo.list_for_user(db, user.clerk_id, skip=skip, limit=limit)
 
 
+# Crea una nueva métrica diaria para la posición
 @router.post("/metrics/daily/{position_id}")
 async def post_daily_positions_metrics(
     position_id: uuid.UUID,
     user: Profile = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    result = await db.execute(
-        text("""
-            SELECT
-                p.*,
-                ap.close AS current_price
-            FROM positions p
-            JOIN accounts a
-                ON a.id = p.account_id
-            JOIN asset_prices ap
-                ON ap.asset_id = p.asset_id
-            WHERE p.id = :position_id
-              AND a.user_id = :user_id
-            ORDER BY ap.date DESC
-            LIMIT 1
-        """),
-        {
-            "position_id": position_id,
-            "user_id": user.clerk_id,
-        },
+    metrics = await position_metrics_repo.create_daily_metrics(
+        db, user.clerk_id, position_id
     )
-
-    row = result.mappings().first()
-
-    if not row:
+    if metrics is None:
         raise HTTPException(status_code=404, detail="Position not found")
-
-    current_price = row["current_price"]
-
-    position = PositionRead(
-        id=row["id"],
-        account_id=row["account_id"],
-        asset_id=row["asset_id"],
-        quantity=row["quantity"],
-        avg_cost=row["avg_cost"],
-        realized_pnl=row["realized_pnl"],
-        total_dividends=row["total_dividends"],
-        total_fees=row["total_fees"],
-        last_transaction_at=row["last_transaction_at"],
-        updated_at=row["updated_at"],
-    )
-
-    metrics = calculate_position_daily_metrics(position, current_price)
-
-    await db.execute(
-        text("""
-            INSERT INTO position_daily_metrics (id, position_id, date, unrealized_pnl, total_pnl)
-            VALUES (:id, :position_id, :date, :unrealized_pnl, :total_pnl)
-        """),
-        {
-            "id": str(uuid.uuid4()),
-            "position_id": position_id,
-            "date": metrics["date"],
-            "unrealized_pnl": metrics["unrealized_pnl"],
-            "total_pnl": metrics["total_pnl"],
-        },
-    )
-
-    await db.commit()
-
     return metrics
-    
 
-@router.get("/metrics/daily/{position_id}")
+# Lista todas las métricas diarias de una posición
+# Con filtros opcionales por tiempo (trend_to, trend_from)
+@router.get("/metrics/daily/{position_id}/all")
 async def get_daily_positions_metrics(
     position_id: uuid.UUID,
     user: Profile = Depends(get_current_user),
@@ -121,43 +68,19 @@ async def get_daily_positions_metrics(
     trend_from: date_type | None = Query(None),
     trend_to: date_type | None = Query(None),
 ):
-    query = """
-        SELECT pdm.*
-        FROM position_daily_metrics pdm
-        JOIN positions p
-            ON p.id = pdm.position_id
-        JOIN accounts a
-            ON a.id = p.account_id
-        WHERE pdm.position_id = :position_id
-          AND a.user_id = :user_id
-    """
-
-    params = {
-        "position_id": position_id,
-        "user_id": user.clerk_id,
-    }
-
-    if trend_from:
-        query += " AND pdm.date >= :trend_from"
-        params["trend_from"] = trend_from
-
-    if trend_to:
-        query += " AND pdm.date <= :trend_to"
-        params["trend_to"] = trend_to
-
-    query += " ORDER BY pdm.date DESC"
-
-    result = await db.execute(
-        text(query),
-        params,
-    )
-
-    metrics = result.mappings().all()
-
+    metrics = await position_metrics_repo.list_daily_metrics(db, user.clerk_id, position_id, trend_from, trend_to)
     if not metrics:
-        raise HTTPException(
-            status_code=404,
-            detail="Position daily metrics not found"
-        )
-
+        raise HTTPException(status_code=404, detail="Position daily metrics not found")
     return metrics
+
+# Obtener la métrica diaria más reciente de esta posición
+@router.get("/metrics/daily/{position_id}")
+async def get_latest_daily_positions_metrics(
+    position_id: uuid.UUID,
+    user: Profile = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    metric = await position_metrics_repo.get_latest_daily_metric(db, user.clerk_id, position_id)  
+    if metric is None:
+        raise HTTPException(status_code=404, detail="No daily metrics found for this position")
+    return metric
