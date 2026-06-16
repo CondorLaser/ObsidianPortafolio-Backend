@@ -1,19 +1,19 @@
 import uuid
 from datetime import date as date_type
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from sqlalchemy import select, text
-from app.models.portfolio_snapshot import PortfolioSnapshot
+from sqlalchemy import text
 
 from app.core.auth import get_current_user
 from app.core.db import get_db
 from app.models.user import Profile
-from app.models.portfolio_snapshot import PortfolioSnapshot
 from app.repositories import portfolio_repo
-from app.schemas.portfolio import PortfolioDashboard, PortfolioSummaryResponse, TrendPoint, PortfolioSnapshotRead
+from app.repositories import portfolio_metrics_repo
+from app.schemas.portfolio import PortfolioDashboard, PortfolioSummaryResponse, TrendPoint
+from app.schemas.portfolio_metrics import PortfolioDailyMetricRead, PortfolioMonthlyMetricRead
 
 from app.metrics.portfolio import calculate_portfolio_daily_metrics, calculate_portfolio_monthly_metrics
 
@@ -112,7 +112,18 @@ async def post_daily_metrics(
 
     return metrics
 
-@router.get("/metrics/daily")
+# Retorna la métrica diaria del portafolio más reciente
+@router.get("/metrics/daily", response_model=PortfolioDailyMetricRead)
+async def get_latest_daily_metric(
+    user: Profile = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    metric = await portfolio_metrics_repo.get_latest_daily_metric(db, user.clerk_id)
+    if metric is None:
+        raise HTTPException(status_code=404, detail="No daily metrics found for this portfolio")
+    return metric
+
+@router.get("/metrics/daily/all")
 async def get_daily_metrics(
     user: Profile = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -180,7 +191,18 @@ async def post_monthly_metrics(
 
     return metrics
 
-@router.get("/metrics/monthly")
+# Retorna la métrica mensual del portafolio más reciente
+@router.get("/metrics/monthly", response_model=PortfolioMonthlyMetricRead)
+async def get_latest_monthly_metric(
+    user: Profile = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    metric = await portfolio_metrics_repo.get_latest_monthly_metric(db, user.clerk_id)
+    if metric is None:
+        raise HTTPException(status_code=404, detail="No monthly metrics found for this portfolio")
+    return metric
+
+@router.get("/metrics/monthly/all")
 async def get_monthly_metrics(
     user: Profile = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
