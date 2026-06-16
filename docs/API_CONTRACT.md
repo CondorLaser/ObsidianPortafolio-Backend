@@ -2,7 +2,7 @@
 
 > ⚙️ Generado automáticamente desde `/openapi.json`. **NO editar a mano** — re-correr `scripts/generate_api_contract.py`.
 
-**Total endpoints**: 40  
+**Total endpoints**: 46  
 **Base URL local**: `http://localhost:8000` (sin `/api/v1`)  
 **Auth**: Bearer JWT Clerk en header `Authorization` (excepto rutas públicas)
 
@@ -10,15 +10,15 @@
 
 | Tag | Endpoints |
 |---|---|
-| **accounts** | 7 (`/accounts`, `/accounts/dividends/{account_id}`, `/accounts/metrics/{account_id}`, `/accounts/positions/{account_id}`, `/accounts/transactions/{account_id}`, `/accounts/{account_id}`) |
-| **assets** | 3 (`/assets`, `/assets/{asset_id}`) |
+| **accounts** | 8 (`/accounts`, `/accounts/dividends/{account_id}`, `/accounts/metrics/{account_id}`, `/accounts/positions/{account_id}`, `/accounts/transactions/{account_id}`, `/accounts/with-counters`, `/accounts/{account_id}`) |
+| **assets** | 5 (`/assets`, `/assets/metrics/daily/{asset_id}`, `/assets/metrics/monthly/{asset_id}`, `/assets/{asset_id}`) |
 | **dividends** | 1 (`/dividends`) |
 | **health** | 1 (`/health`) |
 | **misc** | 2 (`/`, `/protected`) |
 | **onboarding** | 1 (`/risk_profile`) |
 | **pdf** | 3 (`/pdf/extract_mutual_funds`, `/pdf/extract_stocks_etf_1`, `/pdf/extract_stocks_etf_2`) |
-| **portfolio** | 8 (`/portfolio/dashboard`, `/portfolio/metrics/daily`, `/portfolio/metrics/monthly`, `/portfolio/rebuild`, `/portfolio/summary`, `/portfolio/trend`) |
-| **positions** | 5 (`/positions`, `/positions/asset/{asset_id}`, `/positions/metrics/daily/{position_id}`, `/positions/portfolio`) |
+| **portfolio** | 10 (`/portfolio/dashboard`, `/portfolio/metrics/daily`, `/portfolio/metrics/daily/all`, `/portfolio/metrics/monthly`, `/portfolio/metrics/monthly/all`, `/portfolio/rebuild`, `/portfolio/summary`, `/portfolio/trend`) |
+| **positions** | 6 (`/positions`, `/positions/asset/{asset_id}`, `/positions/metrics/daily/{position_id}`, `/positions/metrics/daily/{position_id}/all`, `/positions/portfolio`) |
 | **preferences** | 2 (`/preferences`) |
 | **prices** | 2 (`/assets/{asset_id}/prices`) |
 | **profile** | 2 (`/profile`) |
@@ -247,6 +247,37 @@ HTTPValidationError: {
 
 ---
 
+### `GET` `/accounts/with-counters`
+
+List Accounts
+
+**Query params**:
+
+- `skip` (integer, optional) — Registros a saltar
+- `limit` (integer, optional) — Máx. registros retornar
+
+**Response 200** — Successful Response:
+
+```
+array of AccountWithCountersRead:
+{
+    account: `AccountRead`
+    stock_positions?: integer
+    fund_positions?: integer
+    etf_positions?: integer
+  }
+```
+
+**Response 422** — Validation Error:
+
+```
+HTTPValidationError: {
+    detail?: array of `ValidationError`
+  }
+```
+
+---
+
 ### `GET` `/accounts/{account_id}`
 
 Get Account
@@ -287,7 +318,7 @@ List Assets
 
 **Query params**:
 
-- `symbol` (string | null, optional) — exact match (Eduardo)
+- `symbol` (string | null, optional) — exact match
 - `kind` (`AssetKind` | null, optional)
 - `currency` (string | null, optional)
 - `search` (string | null, optional) — ilike sobre symbol o name
@@ -343,6 +374,66 @@ AssetRead: {
     kind: `AssetKind`
     currency?: string | null
     created_at: string (date-time)
+  }
+```
+
+**Response 422** — Validation Error:
+
+```
+HTTPValidationError: {
+    detail?: array of `ValidationError`
+  }
+```
+
+---
+
+### `GET` `/assets/metrics/daily/{asset_id}`
+
+Get Asset Daily Metrics
+
+**Path params**:
+
+- `asset_id`: string (uuid)
+
+**Response 200** — Successful Response:
+
+```
+AssetDailyMetricRead: {
+    id: string (uuid)
+    asset_id: string (uuid)
+    date: string (date) | null
+    absolute_return: string | null
+    volatility: string | null
+    max_drawdown: string | null
+  }
+```
+
+**Response 422** — Validation Error:
+
+```
+HTTPValidationError: {
+    detail?: array of `ValidationError`
+  }
+```
+
+---
+
+### `GET` `/assets/metrics/monthly/{asset_id}`
+
+Get Asset Monthly Metrics
+
+**Path params**:
+
+- `asset_id`: string (uuid)
+
+**Response 200** — Successful Response:
+
+```
+AssetMonthlyMetricRead: {
+    id: string (uuid)
+    asset_id: string (uuid)
+    date: string (date) | null
+    beta: string | null
   }
 ```
 
@@ -588,6 +679,32 @@ HTTPValidationError: {
 
 ### `GET` `/portfolio/metrics/daily`
 
+Get Latest Daily Metric
+
+**Response 200** — Successful Response:
+
+```
+PortfolioDailyMetricRead: {
+    id: string (uuid)
+    portfolio_id: string (uuid)
+    date: string (date) | null
+    pnl: string | null
+    max_drawdown: string | null
+    volatility: string | null
+    fx_decomposition?: object | null
+  }
+```
+
+---
+
+### `POST` `/portfolio/metrics/daily`
+
+Post Daily Metrics
+
+---
+
+### `GET` `/portfolio/metrics/daily/all`
+
 Get Daily Metrics
 
 **Query params**:
@@ -605,13 +722,33 @@ HTTPValidationError: {
 
 ---
 
-### `POST` `/portfolio/metrics/daily`
+### `GET` `/portfolio/metrics/monthly`
 
-Post Daily Metrics
+Get Latest Monthly Metric
+
+**Response 200** — Successful Response:
+
+```
+PortfolioMonthlyMetricRead: {
+    id: string (uuid)
+    portfolio_id: string (uuid)
+    date: string (date) | null
+    twr: string | null
+    dietz: string | null
+    var: string | null
+    accounts_correlation?: string | null
+  }
+```
 
 ---
 
-### `GET` `/portfolio/metrics/monthly`
+### `POST` `/portfolio/metrics/monthly`
+
+Post Monthly Metrics
+
+---
+
+### `GET` `/portfolio/metrics/monthly/all`
 
 Get Monthly Metrics
 
@@ -627,12 +764,6 @@ HTTPValidationError: {
     detail?: array of `ValidationError`
   }
 ```
-
----
-
-### `POST` `/portfolio/metrics/monthly`
-
-Post Monthly Metrics
 
 ---
 
@@ -762,16 +893,11 @@ HTTPValidationError: {
 
 ### `GET` `/positions/metrics/daily/{position_id}`
 
-Get Daily Positions Metrics
+Get Latest Daily Positions Metrics
 
 **Path params**:
 
 - `position_id`: string (uuid)
-
-**Query params**:
-
-- `trend_from` (string (date) | null, optional)
-- `trend_to` (string (date) | null, optional)
 
 **Response 422** — Validation Error:
 
@@ -790,6 +916,29 @@ Post Daily Positions Metrics
 **Path params**:
 
 - `position_id`: string (uuid)
+
+**Response 422** — Validation Error:
+
+```
+HTTPValidationError: {
+    detail?: array of `ValidationError`
+  }
+```
+
+---
+
+### `GET` `/positions/metrics/daily/{position_id}/all`
+
+Get Daily Positions Metrics
+
+**Path params**:
+
+- `position_id`: string (uuid)
+
+**Query params**:
+
+- `trend_from` (string (date) | null, optional)
+- `trend_to` (string (date) | null, optional)
 
 **Response 422** — Validation Error:
 
