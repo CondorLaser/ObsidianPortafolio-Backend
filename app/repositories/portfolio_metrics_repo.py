@@ -12,9 +12,7 @@ async def get_latest_daily_metric(
         text("""
             SELECT pdm.*
             FROM portfolio_daily_metrics pdm
-            JOIN portfolio_snapshots ps
-                ON ps.id = pdm.portfolio_id
-            WHERE ps.user_id = :user_id
+            WHERE pdm.user_id = :user_id
             ORDER BY pdm.date DESC
             LIMIT 1
         """),
@@ -32,9 +30,7 @@ async def get_latest_monthly_metric(
         text("""
             SELECT pmm.*
             FROM portfolio_monthly_metrics pmm
-            JOIN portfolio_snapshots ps
-                ON ps.id = pmm.portfolio_id
-            WHERE ps.user_id = :user_id
+            WHERE pmm.user_id = :user_id
             ORDER BY pmm.date DESC
             LIMIT 1
         """),
