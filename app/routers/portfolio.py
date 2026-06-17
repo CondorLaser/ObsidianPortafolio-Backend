@@ -80,6 +80,8 @@ async def post_daily_portfolio_metrics(
     user: Profile = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    print("posteadas daily!")
+
     result = await db.execute(
         text("""
             SELECT *
@@ -149,6 +151,8 @@ async def post_monthly_portfolio_metrics(
     user: Profile = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    print("posteadas monthly!")
+
     result = await db.execute(
         text("""
             SELECT *
