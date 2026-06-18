@@ -13,8 +13,8 @@ descontar el flujo de caja del día:
     I[d] = I[d-1] * (1 + r[d])                        (índice time-weighted)
     CF[d] = Σ(buy.qty*price) - Σ(sell.qty*price)      (dinero que entra/sale ese día)
 
-Así una cuenta que sube solo por aportes NO marca "retorno"; volatility y
-max_drawdown reflejan el desempeño de la inversión, no los movimientos de plata.
+La matemática vive en `app.metrics.accounts` (compartida con el cómputo app-side).
+Acá quedan solo los loaders (psycopg2) y el I/O.
 
 Upsert idempotente: DELETE de las cuentas tocadas + INSERT (las tablas
 account_*_metrics no tienen UNIQUE constraint).
@@ -25,28 +25,24 @@ Uso:
 """
 import argparse
 import os
-import statistics
+import sys
 import uuid
 from collections import defaultdict
 from datetime import date
-from math import sqrt
 
 import psycopg2
 from psycopg2.extras import execute_values
 
-TRADING_DAYS = 252
+# El cron corre `python scripts_ghactions/accounts_daily_metrics.py` (script-mode),
+# así que el repo root no está en sys.path: lo agregamos para poder importar `app`.
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-
-def _fit(value, max_abs, label="", account_id=""):
-    """Devuelve None si el valor no cabe en su columna Numeric (evita que una
-    cuenta con data sucia reviente toda la corrida por 'numeric field overflow').
-    max_abs = límite por precisión/escala (ej. Numeric(8,6) -> 100)."""
-    if value is None:
-        return None
-    if abs(value) >= max_abs:
-        print(f"[warn] {label}={value} fuera de rango para {account_id[:8]} -> NULL")
-        return None
-    return value
+from app.metrics.accounts import (
+    adjusted_returns,
+    fit,
+    max_drawdown_twr,
+    volatility,
+)
 
 
 def connection_bdd():
@@ -85,38 +81,6 @@ def build_cashflows(cur) -> dict[tuple[str, date], float]:
         """
     )
     return {(str(acc), d): float(cf or 0) for acc, d, cf in cur.fetchall()}
-
-
-def adjusted_returns(pts, cashflows, account_id) -> list[float]:
-    """Retornos diarios descontando el flujo de caja del día."""
-    out = []
-    for i in range(1, len(pts)):
-        prev_v = pts[i - 1][1]
-        if prev_v == 0:
-            continue
-        d = pts[i][0]
-        cf = cashflows.get((account_id, d), 0.0)
-        out.append((pts[i][1] - prev_v - cf) / prev_v)
-    return out
-
-
-def volatility(returns: list[float]) -> float | None:
-    r = returns[-TRADING_DAYS:]
-    if len(r) < 2:
-        return None
-    return statistics.stdev(r) * sqrt(TRADING_DAYS)
-
-
-def max_drawdown_twr(returns: list[float]) -> float:
-    """Drawdown sobre el índice time-weighted (no contaminado por flujos)."""
-    idx = 1.0
-    peak = 1.0
-    mdd = 0.0
-    for r in returns:
-        idx *= (1 + r)
-        peak = max(peak, idx)
-        mdd = min(mdd, (idx - peak) / peak * 100 if peak != 0 else 0.0)
-    return mdd
 
 
 def pnl_by_account(cur) -> dict[str, float]:
@@ -169,12 +133,12 @@ def main() -> int:
         mdd = max_drawdown_twr(rets)
         pnl = pnls.get(account_id)
         last_date = pts[-1][0]
-        # Acotar a los límites de cada columna Numeric (8,6)/(18,2).
+        # Acotar a los límites de cada columna Numeric (8,6)/(18,2) con `fit`.
         rows.append((
             account_id, last_date,
-            _fit(pnl, 1e16, "pnl", account_id),
-            _fit(mdd, 1e16, "max_drawdown", account_id),
-            _fit(vol, 100, "volatility", account_id),
+            fit(pnl, 1e16),
+            fit(mdd, 1e16),
+            fit(vol, 100),
         ))
         print(f"{account_id:38}{str(last_date):>12}"
               f"{(pnl if pnl is not None else float('nan')):>16,.2f}"

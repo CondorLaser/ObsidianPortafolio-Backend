@@ -24,6 +24,7 @@ from scripts.processing_pdf import (
 )
 from app.repositories.portfolio_repo import reconstruct_user_portfolio
 from app.routers.portfolio import post_daily_portfolio_metrics, post_monthly_portfolio_metrics
+from app.routers.accounts import post_daily_account_metrics, post_monthly_account_metrics
 
 router = APIRouter(prefix="/pdf", tags=["pdf"])
 
@@ -105,6 +106,13 @@ async def upload_pdf_stocks_etf_1(
 
         print(f"12 - Monthly metrics OK: {monthly_metrics}")
 
+        print("12.1 - Creando métricas de cuenta (daily + monthly)")
+
+        await post_daily_account_metrics(user, db)
+        await post_monthly_account_metrics(user, db)
+
+        print("12.2 - Account metrics OK")
+
         print("13 - Todo completado exitosamente")
 
         return {
@@ -154,7 +162,10 @@ async def upload_pdf_mutual_funds(
 
         await post_daily_portfolio_metrics(user, db)
         await post_monthly_portfolio_metrics(user, db)
-        
+
+        await post_daily_account_metrics(user, db)
+        await post_monthly_account_metrics(user, db)
+
         return {
             "message": "Certificado de Transacciones procesado, transacciones y portafolio reconstruido con éxito",
             "reconstruction_details": {

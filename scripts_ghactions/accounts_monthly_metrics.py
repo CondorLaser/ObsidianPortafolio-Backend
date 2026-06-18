@@ -8,9 +8,11 @@ Por cuenta (una fila, "as of" la última fecha):
   - var                = |percentil 5% de retornos mensuales| * valor actual (CLP/USD)
   - assets_correlation = correlación media pairwise entre los assets de la cuenta
 
-Reusa la lógica del daily: serie de valor (breakdown_by_account) + flujo de caja
-para retornos AJUSTADOS  r[d] = (V[d]-V[d-1]-CF[d]) / V[d-1]. Los retornos
-mensuales se arman encadenando los diarios (TWR): (Π(1+r) por mes) - 1.
+La MATEMÁTICA vive en `app.metrics.accounts` (única fuente de verdad, solo stdlib),
+compartida con el cómputo app-side al subir PDF. Acá quedan solo los loaders
+(psycopg2) y el I/O. sharpe/sortino vienen topados a ±99.9999 desde el módulo
+(cuentas con downside ≈0 ya no salen NULL); twr/dietz/var se anulan vía `fit`
+si la data sucia los saca de rango.
 
 Upsert idempotente: DELETE de las cuentas tocadas + INSERT.
 
@@ -20,27 +22,28 @@ Uso:
 """
 import argparse
 import os
-import statistics
+import sys
 import uuid
 from collections import defaultdict
-from datetime import date
-from math import sqrt
 
 import psycopg2
 from psycopg2.extras import execute_values
 
-MONTHS = 12
+# El cron corre `python scripts_ghactions/accounts_monthly_metrics.py` (script-mode),
+# así que el repo root no está en sys.path: lo agregamos para poder importar `app`.
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-
-def _fit(value, max_abs, label="", account_id=""):
-    """Devuelve None si el valor no cabe en su columna Numeric (evita que una
-    cuenta con data sucia reviente toda la corrida por 'numeric field overflow')."""
-    if value is None:
-        return None
-    if abs(value) >= max_abs:
-        print(f"[warn] {label}={value} fuera de rango para {account_id[:8]} -> NULL")
-        return None
-    return value
+from app.metrics.accounts import (
+    daily_adjusted_returns,
+    fit,
+    mean_pairwise_correlation,
+    modified_dietz_last_month,
+    monthly_returns,
+    sharpe,
+    sortino,
+    twr,
+    var_amount,
+)
 
 
 def connection_bdd():
@@ -105,117 +108,11 @@ def asset_daily_returns(cur, asset_id):
     }
 
 
-# ── Cálculos ──────────────────────────────────────────────────────────────
-def daily_adjusted_returns(pts, cashflows, account_id):
-    """[(date, r), ...] con r ajustado por flujo."""
-    out = []
-    for i in range(1, len(pts)):
-        prev_v = pts[i - 1][1]
-        if prev_v == 0:
-            continue
-        d = pts[i][0]
-        cf = cashflows.get((account_id, d), 0.0)
-        out.append((d, (pts[i][1] - prev_v - cf) / prev_v))
-    return out
-
-
-def monthly_returns(daily):
-    """Encadena retornos diarios a mensuales (TWR): por mes Π(1+r)-1.
-    Devuelve [((year, month), ret), ...] ordenado asc."""
-    prod = defaultdict(lambda: 1.0)
-    for d, r in daily:
-        prod[(d.year, d.month)] *= (1 + r)
-    return [(k, v - 1.0) for k, v in sorted(prod.items())]
-
-
-def twr(monthly):
-    rets = [r for _, r in monthly][-MONTHS:]
-    acc = 1.0
-    for r in rets:
-        acc *= (1 + r)
-    return acc - 1.0
-
-
-def sharpe(monthly):
-    rets = [r for _, r in monthly]
-    if len(rets) < 2:
-        return None
-    sd = statistics.stdev(rets)
-    if sd == 0:
-        return None
-    return (statistics.mean(rets) / sd) * sqrt(MONTHS)
-
-
-def sortino(monthly):
-    rets = [r for _, r in monthly]
-    if len(rets) < 2:
-        return None
-    downside = sqrt(sum(min(r, 0.0) ** 2 for r in rets) / len(rets))
-    if downside == 0:
-        return None
-    return (statistics.mean(rets) / downside) * sqrt(MONTHS)
-
-
-def var_amount(monthly, current_value):
-    """VaR histórico: |percentil 5% de retornos mensuales| * valor actual."""
-    rets = sorted(r for _, r in monthly)
-    if len(rets) < 2 or current_value is None:
-        return None
-    idx = max(0, int(0.05 * len(rets)) - 1) if len(rets) >= 20 else 0
-    p5 = rets[idx]
-    return abs(min(p5, 0.0)) * float(current_value)
-
-
-def modified_dietz_last_month(pts, cashflows, account_id):
-    """Modified Dietz del último mes presente en la serie."""
-    if len(pts) < 2:
-        return None
-    last_d = pts[-1][0]
-    y, m = last_d.year, last_d.month
-    month_pts = [(d, v) for d, v in pts if d.year == y and d.month == m]
-    if len(month_pts) < 2:
-        return None
-    bmd = month_pts[0][0]
-    emd = month_pts[-1][0]
-    bv = month_pts[0][1]
-    ev = month_pts[-1][1]
-    days = max((emd - bmd).days, 1)
-    cf_total = 0.0
-    weighted = 0.0
-    for d, v in pts:
-        if d.year == y and d.month == m and d != bmd:
-            cf = cashflows.get((account_id, d), 0.0)
-            cf_total += cf
-            w = (days - (d - bmd).days) / days
-            weighted += w * cf
-    denom = bv + weighted
-    if denom == 0:
-        return None
-    return (ev - bv - cf_total) / denom
-
-
 def assets_correlation(cur, account_id):
     """Correlación media pairwise entre retornos diarios de los assets de la cuenta."""
     asset_ids = account_assets(cur, account_id)
-    returns = {a: asset_daily_returns(cur, a) for a in asset_ids}
-    returns = {a: r for a, r in returns.items() if len(r) >= 2}
-    keys = list(returns)
-    if len(keys) < 2:
-        return None
-    corrs = []
-    for i in range(len(keys)):
-        for j in range(i + 1, len(keys)):
-            ra, rb = returns[keys[i]], returns[keys[j]]
-            common = sorted(set(ra) & set(rb))
-            if len(common) < 2:
-                continue
-            xa = [ra[d] for d in common]
-            xb = [rb[d] for d in common]
-            try:
-                corrs.append(statistics.correlation(xa, xb))
-            except (statistics.StatisticsError, ValueError):
-                continue
-    return sum(corrs) / len(corrs) if corrs else None
+    returns_by_asset = {a: asset_daily_returns(cur, a) for a in asset_ids}
+    return mean_pairwise_correlation(returns_by_asset)
 
 
 def main() -> int:
@@ -247,16 +144,16 @@ def main() -> int:
         v = var_amount(monthly, pts[-1][1])
         corr = assets_correlation(cur, account_id)
         last_date = pts[-1][0]
-        # Acotar a los límites de cada columna: twr/dietz(10,8), sharpe/sortino(6,4),
-        # var(18,2), assets_correlation(5,4).
+        # twr/dietz(10,8) y var(18,2)/corr(5,4) se anulan si no caben (fit).
+        # sharpe/sortino(6,4) ya vienen topados a ±99.9999 desde el módulo.
         rows.append((
             account_id, last_date,
-            _fit(t, 100, "twr", account_id),
-            _fit(die, 100, "dietz", account_id),
-            _fit(sh, 100, "sharpe_ratio", account_id),
-            _fit(v, 1e16, "var", account_id),
-            _fit(so, 100, "sortino", account_id),
-            _fit(corr, 10, "assets_correlation", account_id),
+            fit(t, 100),
+            fit(die, 100),
+            sh,
+            fit(v, 1e16),
+            so,
+            fit(corr, 10),
         ))
 
         def f(x, p="{:>9.4f}"):
