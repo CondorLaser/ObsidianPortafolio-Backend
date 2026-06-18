@@ -38,26 +38,26 @@ async def main() -> int:
     print(f"  DB: {db_url[:60]}{'...' if len(db_url) > 60 else ''}")
 
     async with SessionLocal() as db:
-        clerk_ids = await portfolio_repo.list_users_with_transactions(db)
-    print(f"  {len(clerk_ids)} usuarios con transactions a reconstruir")
+        users = await portfolio_repo.list_users_with_transactions(db)
+    print(f"  {len(users)} usuarios con transactions a reconstruir")
     print()
 
     ok = 0
     fail = 0
-    for i, clerk_id in enumerate(clerk_ids, 1):
+    for i, user in enumerate(users, 1):
         t0 = time.time()
         try:
             async with SessionLocal() as db:
-                snaps, pos = await portfolio_repo.compute_user_series(db, clerk_id)
-                n_snaps = await portfolio_repo.replace_snapshots(db, clerk_id, snaps)
-                n_pos = await portfolio_repo.replace_positions(db, clerk_id, pos)
+                snaps, pos = await portfolio_repo.compute_user_series(db, user.clerk_id)
+                n_snaps = await portfolio_repo.replace_snapshots(db, user.clerk_id, snaps)
+                n_pos = await portfolio_repo.replace_positions(db, user, pos)
             elapsed = time.time() - t0
-            print(f"  [{i}/{len(clerk_ids)}] {clerk_id}: {n_snaps} snapshots, "
+            print(f"  [{i}/{len(users)}] {user.clerk_id}: {n_snaps} snapshots, "
                   f"{n_pos} positions ({elapsed:.2f}s)")
             ok += 1
         except Exception as exc:
             fail += 1
-            print(f"  [{i}/{len(clerk_ids)}] {clerk_id}: ❌ {exc}")
+            print(f"  [{i}/{len(users)}] {user.clerk_id}: ❌ {exc}")
             traceback.print_exc()
             # NO re-raise — seguir con el resto de users.
 
