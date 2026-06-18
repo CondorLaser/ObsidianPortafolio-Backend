@@ -23,7 +23,7 @@ from scripts.processing_pdf import (
     extract_stocks_etf_2,
 )
 from app.repositories.portfolio_repo import reconstruct_user_portfolio
-
+from app.routers.portfolio import post_daily_portfolio_metrics, post_monthly_portfolio_metrics
 
 router = APIRouter(prefix="/pdf", tags=["pdf"])
 
@@ -42,37 +42,92 @@ async def upload_pdf_stocks_etf_1(
     user: Profile = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    print("1 - Recibido upload PDF stocks/ETF 1")
+
     await _require_account(db, user, account_id)
+    print("2 - Cuenta validada")
+
     content = await file.read()
-    
+    print(f"3 - Archivo leído ({len(content)} bytes)")
+
     try:
         with pdfplumber.open(io.BytesIO(content)) as pdf:
             data = extract_stocks_etf_1(pdf)
-    except Exception:
-        raise HTTPException(status_code=400, detail="Error al analizar el archivo, archivo no válido")
-    # Generar las Transactions y Dividends
-    dict_processed_data = await pdf_repo.stocks_etf_1(db, user.clerk_id, data, account_id)
-    # Reconstruir portafolio en base a eso (positions + snapshot portafolio)
-    try:
-        n_snapshots, n_positions = await reconstruct_user_portfolio(db, user.clerk_id)
 
-        print({"reconstruction_details": {
-                "snapshots_updated": n_snapshots,
-                "positions_updated": n_positions
-            },
-            "processed_data": dict_processed_data})
-        
+        print("4 - PDF procesado correctamente")
+
+    except Exception as e:
+        print(f"ERROR procesando PDF: {e}")
+        raise HTTPException(
+            status_code=400,
+            detail="Error al analizar el archivo, archivo no válido"
+        )
+
+    print("5 - Guardando transactions/dividends")
+
+    dict_processed_data = await pdf_repo.stocks_etf_1(
+        db,
+        user.clerk_id,
+        data,
+        account_id
+    )
+
+    print("6 - Transactions guardadas")
+
+    try:
+        print("7 - Iniciando reconstrucción de portafolio")
+
+        n_snapshots, n_positions = await reconstruct_user_portfolio(
+            db,
+            user
+        )
+
+        print(
+            f"8 - Reconstrucción OK "
+            f"(snapshots={n_snapshots}, positions={n_positions})"
+        )
+
+        print("9 - Creando métricas diarias")
+
+        daily_metrics = await post_daily_portfolio_metrics(
+            user,
+            db
+        )
+
+        print(f"10 - Daily metrics OK: {daily_metrics}")
+
+        print("11 - Creando métricas mensuales")
+
+        monthly_metrics = await post_monthly_portfolio_metrics(
+            user,
+            db
+        )
+
+        print(f"12 - Monthly metrics OK: {monthly_metrics}")
+
+        print("13 - Todo completado exitosamente")
+
         return {
-            "message": "Certificado de Transacciones procesado, transacciones y portafolio reconstruido con éxito",
+            "message": (
+                "Certificado de Transacciones procesado, "
+                "transacciones y portafolio reconstruido con éxito"
+            ),
             "reconstruction_details": {
                 "snapshots_updated": n_snapshots,
                 "positions_updated": n_positions
             },
             "processed_data": dict_processed_data
         }
+
     except Exception as e:
+        print(f"ERROR EN RECONSTRUCCIÓN/MÉTRICAS: {type(e).__name__}")
+        print(f"DETALLE: {e}")
+
         return {
-            "message": "Certificado procesado, pero la reconstrucción inmediata falló. Se ejecutará durante la noche",
+            "message": (
+                "Certificado procesado, pero la reconstrucción "
+                "inmediata falló. Se ejecutará durante la noche"
+            ),
             "error": str(e)
         }
 
@@ -95,7 +150,11 @@ async def upload_pdf_mutual_funds(
     await pdf_repo.save_mutual_funds(db, user.clerk_id, data, account_id)
     # Reconstruir portafolio en base a eso (positions + snapshot portafolio)
     try:
-        n_snapshots, n_positions = await reconstruct_user_portfolio(db, user.clerk_id)
+        n_snapshots, n_positions = await reconstruct_user_portfolio(db, user)
+
+        await post_daily_portfolio_metrics(user, db)
+        await post_monthly_portfolio_metrics(user, db)
+        
         return {
             "message": "Certificado de Transacciones procesado, transacciones y portafolio reconstruido con éxito",
             "reconstruction_details": {

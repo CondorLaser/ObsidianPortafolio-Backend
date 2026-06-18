@@ -51,6 +51,8 @@ async def post_daily_positions_metrics(
     user: Profile = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    print("Buscando métricas para position:", position_id)
+
     result = await db.execute(
         text("""
             SELECT
@@ -59,11 +61,11 @@ async def post_daily_positions_metrics(
             FROM positions p
             JOIN accounts a
                 ON a.id = p.account_id
-            JOIN asset_prices ap
+            LEFT JOIN asset_prices ap
                 ON ap.asset_id = p.asset_id
             WHERE p.id = :position_id
-              AND a.user_id = :user_id
-            ORDER BY ap.date DESC
+            AND a.user_id = :user_id
+            ORDER BY ap.date DESC NULLS LAST
             LIMIT 1
         """),
         {
@@ -75,7 +77,17 @@ async def post_daily_positions_metrics(
     row = result.mappings().first()
 
     if not row:
-        raise HTTPException(status_code=404, detail="Position not found")
+        raise HTTPException(
+            status_code=404,
+            detail="Position not found"
+        )
+
+    if row["current_price"] is None:
+        print(
+            f"Asset {row['asset_id']} sin precio. "
+            f"No se crean métricas para position {position_id}"
+        )
+        return None
 
     current_price = row["current_price"]
 

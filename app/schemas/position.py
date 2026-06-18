@@ -38,4 +38,5 @@ class PositionRead(BaseModel):
     total_fees: Decimal | None
     last_transaction_at: datetime | None
     updated_at: datetime | None
-    asset: AssetRead
+    
+    asset: AssetRead | None = None
