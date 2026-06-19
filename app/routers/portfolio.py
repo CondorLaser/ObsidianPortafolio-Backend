@@ -50,7 +50,7 @@ async def rebuild_portfolio(
     # Sync porque a 3-7s por user es aceptable y simplifica vs background tasks.
     snaps, pos = await portfolio_repo.compute_user_series(db, user.clerk_id)
     n_snaps = await portfolio_repo.replace_snapshots(db, user.clerk_id, snaps)
-    n_pos = await portfolio_repo.replace_positions(db, user.clerk_id, pos)
+    n_pos = await portfolio_repo.replace_positions(db, user, pos)
     return RebuildResult(snapshots_persisted=n_snaps, positions_persisted=n_pos)
 
 
