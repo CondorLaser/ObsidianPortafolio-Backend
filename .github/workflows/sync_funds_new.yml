@@ -1,4 +1,4 @@
-name: Asset Daily Metrics
+name: Sync Funds New
 
 
 on:
@@ -6,7 +6,7 @@ on:
   #   branches:
   #     - feat/asset-metrics-monthly-and-mailer #solo para testeo
   schedule:
-      - cron: "0 6 * * *"  # todos los días en la noche
+    - cron: "0 5 * * *"  # todos los días en la noche
   workflow_dispatch:      
 
 jobs:
@@ -26,4 +26,5 @@ jobs:
       - name: Correr script
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
-        run: python scripts_ghactions/assets_daily_metrics.py
+          TWELVEDATA_API_KEY: ${{ secrets.TWELVEDATA_API_KEY }}
+        run: python sync_funds_new.py

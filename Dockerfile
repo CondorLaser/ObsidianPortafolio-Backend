@@ -23,6 +23,7 @@ COPY app ./app
 COPY alembic ./alembic
 COPY alembic.ini ./
 COPY scripts ./scripts
+COPY mailer ./mailer
 # Opcionales: scripts standalone (no fallan si no existen en algunas ramas).
 COPY sync_stock_prices.py* ./
 
