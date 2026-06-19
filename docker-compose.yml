@@ -30,7 +30,8 @@ services:
       APP_ENV: dev
       # Override directo: dentro del compose net, db es el hostname del servicio.
       # Esto pisa DATABASE_URL_DEV del .env (que apunta a localhost:5433).
-      DATABASE_URL: postgresql://neondb_owner:npg_MligWR4km5yZ@ep-frosty-fog-anf54b7b-pooler.c-6.us-east-1.aws.neon.tech/neondb
+      #DATABASE_URL: postgresql://neondb_owner:npg_MligWR4km5yZ@ep-frosty-fog-anf54b7b-pooler.c-6.us-east-1.aws.neon.tech/neondb
+      DATABASE_URL: postgresql://neondb_owner:npg_MligWR4km5yZ@ep-patient-truth-anbf88il-pooler.c-6.us-east-1.aws.neon.tech/neondb
       DATABASE_TESTING: postgresql://orion:orion@db:5432/orion_dev
       CLERK_ISSUER: https://worthy-jackal-80.clerk.accounts.dev
       CLERK_WEBHOOK_SECRET: whsec_7kjyzJtE7sp2MgHVqiJ5hVYPk/EYjybO
