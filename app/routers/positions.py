@@ -1,3 +1,4 @@
+from sqlalchemy import text
 import uuid
 from datetime import date as date_type
 
@@ -10,6 +11,7 @@ from app.models.user import Profile
 from app.repositories import position_repo
 from app.schemas.position import PositionDerived, PositionRead
 from app.repositories import position_metrics_repo
+from app.metrics.positions import calculate_position_daily_metrics
 
 router = APIRouter(prefix="/positions", tags=["positions"])
 
@@ -51,11 +53,77 @@ async def post_daily_positions_metrics(
     user: Profile = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    metrics = await position_metrics_repo.create_daily_metrics(
-        db, user.clerk_id, position_id
+    print("Buscando métricas para position:", position_id)
+
+    result = await db.execute(
+        text("""
+            SELECT
+                p.*,
+                ap.close AS current_price
+            FROM positions p
+            JOIN accounts a
+                ON a.id = p.account_id
+            LEFT JOIN asset_prices ap
+                ON ap.asset_id = p.asset_id
+            WHERE p.id = :position_id
+            AND a.user_id = :user_id
+            ORDER BY ap.date DESC NULLS LAST
+            LIMIT 1
+        """),
+        {
+            "position_id": position_id,
+            "user_id": user.clerk_id,
+        },
     )
-    if metrics is None:
-        raise HTTPException(status_code=404, detail="Position not found")
+
+    row = result.mappings().first()
+
+    if not row:
+        raise HTTPException(
+            status_code=404,
+            detail="Position not found"
+        )
+
+    if row["current_price"] is None:
+        print(
+            f"Asset {row['asset_id']} sin precio. "
+            f"No se crean métricas para position {position_id}"
+        )
+        return None
+
+    current_price = row["current_price"]
+
+    position = PositionRead(
+        id=row["id"],
+        account_id=row["account_id"],
+        asset_id=row["asset_id"],
+        quantity=row["quantity"],
+        avg_cost=row["avg_cost"],
+        realized_pnl=row["realized_pnl"],
+        total_dividends=row["total_dividends"],
+        total_fees=row["total_fees"],
+        last_transaction_at=row["last_transaction_at"],
+        updated_at=row["updated_at"],
+    )
+
+    metrics = calculate_position_daily_metrics(position, current_price)
+
+    await db.execute(
+        text("""
+            INSERT INTO position_daily_metrics (id, position_id, date, unrealized_pnl, total_pnl)
+            VALUES (:id, :position_id, :date, :unrealized_pnl, :total_pnl)
+        """),
+        {
+            "id": str(uuid.uuid4()),
+            "position_id": position_id,
+            "date": metrics["date"],
+            "unrealized_pnl": metrics["unrealized_pnl"],
+            "total_pnl": metrics["total_pnl"],
+        },
+    )
+
+    await db.commit()
+
     return metrics
 
 # Lista todas las métricas diarias de una posición

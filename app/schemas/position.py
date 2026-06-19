@@ -38,7 +38,7 @@ class PositionRead(BaseModel):
     total_fees: Decimal | None
     last_transaction_at: datetime | None
     updated_at: datetime | None
-    asset: AssetRead
+    asset: AssetRead | None = None
 
 class PositionWrite(BaseModel):
     """Para poder crear una Posición Materializada, no incluye asset"""

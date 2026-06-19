@@ -1,0 +1,28 @@
+name: Portfolio Metrics
+
+on:
+  schedule:
+    # Corre después de Portfolio Reconstruction
+    - cron: "30 6 * * *"
+  workflow_dispatch:
+
+jobs:
+  metrics:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Instalar dependencias
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Generar métricas de portfolio
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: python -m scripts_ghactions.portfolio_metrics

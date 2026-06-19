@@ -76,10 +76,12 @@ async def get_portfolio_trend(
 # del router positions
 
 @router.post("/metrics/daily")
-async def post_daily_metrics(
+async def post_daily_portfolio_metrics(
     user: Profile = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    print("posteadas daily!")
+
     result = await db.execute(
         text("""
             SELECT *
@@ -112,7 +114,6 @@ async def post_daily_metrics(
 
     return metrics
 
-# Retorna la métrica diaria del portafolio más reciente
 @router.get("/metrics/daily", response_model=PortfolioDailyMetricRead)
 async def get_latest_daily_metric(
     user: Profile = Depends(get_current_user),
@@ -124,7 +125,7 @@ async def get_latest_daily_metric(
     return metric
 
 @router.get("/metrics/daily/all")
-async def get_daily_metrics(
+async def get_daily_portfolio_metrics(
     user: Profile = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
     trend_from: date_type | None = Query(None), 
@@ -156,10 +157,12 @@ async def get_daily_metrics(
     return result.mappings().all()
 
 @router.post("/metrics/monthly")
-async def post_monthly_metrics(
+async def post_monthly_portfolio_metrics(
     user: Profile = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    print("posteadas monthly!")
+
     result = await db.execute(
         text("""
             SELECT *
@@ -191,7 +194,6 @@ async def post_monthly_metrics(
 
     return metrics
 
-# Retorna la métrica mensual del portafolio más reciente
 @router.get("/metrics/monthly", response_model=PortfolioMonthlyMetricRead)
 async def get_latest_monthly_metric(
     user: Profile = Depends(get_current_user),
@@ -203,7 +205,7 @@ async def get_latest_monthly_metric(
     return metric
 
 @router.get("/metrics/monthly/all")
-async def get_monthly_metrics(
+async def get_monthly_portfolio_metrics(
     user: Profile = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
     trend_from: date_type | None = Query(None),

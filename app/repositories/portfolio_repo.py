@@ -41,6 +41,8 @@ from app.models.position import Position
 from app.models.transaction import Transaction, TransactionKind
 from app.models.user import Profile
 
+from app.routers.positions import post_daily_positions_metrics
+
 
 ZERO = Decimal("0")
 
@@ -267,12 +269,12 @@ async def replace_snapshots(
 
 
 async def replace_positions(
-    session: AsyncSession, clerk_id: str, positions: list[dict]
+    session: AsyncSession, user, positions: list[dict]
 ) -> int:
     """Reemplaza positions del user (DELETE las de sus accounts + INSERT)."""
     # accounts del user
     accs_q = await session.execute(
-        select(Account.id).where(Account.user_id == clerk_id)
+        select(Account.id).where(Account.user_id == user.clerk_id)
     )
     account_ids = [r[0] for r in accs_q.all()]
     if not account_ids:
@@ -285,6 +287,10 @@ async def replace_positions(
         rows = [{"id": uuid.uuid4(), **p} for p in positions]
         await session.execute(insert(Position), rows)
     await session.commit()
+
+    for row in rows:
+        await post_daily_positions_metrics(row["id"], user, session)
+
     return len(positions)
 
 
@@ -595,10 +601,10 @@ async def get_portfolio_trend_data(
 
 
 async def list_users_with_transactions(session: AsyncSession) -> list[str]:
-    """Devuelve clerk_ids de usuarios que tienen al menos 1 transaction.
+    """Devuelve el objeto user de usuarios que tienen al menos 1 transaction.
     Usado por el cron para iterar solo los users relevantes."""
     q = await session.execute(
-        select(Profile.clerk_id)
+        select(Profile)
         .join(Account, Account.user_id == Profile.clerk_id)
         .join(Transaction, Transaction.account_id == Account.id)
         .distinct()
@@ -613,19 +619,19 @@ async def list_users_with_transactions(session: AsyncSession) -> list[str]:
 # TODO: Evaluar si es muy pesado de ejecutar, en caso de que sí considerar plantear: 
 # a) Límites de cuántos datos considera
 # b) Sistema alterno de reconstrucción menos pesado (update datos en vez de eliminar)??
-async def reconstruct_user_portfolio(session: AsyncSession, clerk_id: str) -> tuple[int, int]:
+async def reconstruct_user_portfolio(session: AsyncSession, user) -> tuple[int, int]:
     """
     Reconstruye el portafolio (snapshots y posiciones) para usuario dado usando las funciones existentes
     Devuelve una tupla (n_snapshots, n_positions) con la cantidad de registros insertados
     """
     # Calcular la serie temporal completa en memoria para este usuario específico
-    snapshots, positions = await compute_user_series(session, clerk_id)
+    snapshots, positions = await compute_user_series(session, user.clerk_id)
     # Si el usuario no tiene transacciones, evitamos operaciones innecesarias
     if not snapshots and not positions:
         return 0, 0
     # Reemplazar de forma idempotente los snapshots
-    n_snaps = await replace_snapshots(session, clerk_id, snapshots)
+    n_snaps = await replace_snapshots(session, user.clerk_id, snapshots)
     # Reemplazar las posiciones actuales
-    n_pos = await replace_positions(session, clerk_id, positions)
+    n_pos = await replace_positions(session, user, positions)
     
     return n_snaps, n_pos
