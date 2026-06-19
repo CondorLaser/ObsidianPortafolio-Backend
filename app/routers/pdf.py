@@ -10,6 +10,7 @@ import io
 import uuid
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 import pdfplumber
 
@@ -73,6 +74,19 @@ async def upload_pdf_stocks_etf_1(
     )
 
     print("6 - Transactions guardadas")
+
+    if (
+        dict_processed_data.get("compras_ventas_guardadas", 0) == 0
+        and dict_processed_data.get("dividendos_guardados", 0) == 0
+    ):
+        return JSONResponse(
+            status_code=422,
+            content={
+                "message": (
+                    "No se subieron transacciones, revisa que sea el archivo correcto o que no haya sido subido anteriormente a la cuenta"
+                ),
+            }
+        )
 
     try:
         print("7 - Iniciando reconstrucción de portafolio")
@@ -147,7 +161,18 @@ async def upload_pdf_mutual_funds(
     except Exception:
         raise HTTPException(status_code=400, detail="Error al analizar el archivo, archivo no válido")
     # Generar las Transactions (aportes/rescates de fondos mutuos)
-    await pdf_repo.save_mutual_funds(db, user.clerk_id, data, account_id)
+    result = await pdf_repo.save_mutual_funds(db, user.clerk_id, data, account_id)
+
+    if result.get("compras_ventas_guardadas", 0) == 0:
+        return JSONResponse(
+            status_code=422,
+            content={
+                "message": (
+                    "No se subieron transacciones, revisa que sea el archivo correcto o que no haya sido subido anteriormente a la cuenta"
+                ),
+            },
+        )
+
     # Reconstruir portafolio en base a eso (positions + snapshot portafolio)
     try:
         n_snapshots, n_positions = await reconstruct_user_portfolio(db, user)
