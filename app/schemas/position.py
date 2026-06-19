@@ -38,5 +38,20 @@ class PositionRead(BaseModel):
     total_fees: Decimal | None
     last_transaction_at: datetime | None
     updated_at: datetime | None
-    
     asset: AssetRead | None = None
+
+class PositionWrite(BaseModel):
+    """Para poder crear una Posición Materializada, no incluye asset"""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    account_id: uuid.UUID
+    asset_id: uuid.UUID
+    quantity: Decimal | None
+    avg_cost: Decimal | None
+    realized_pnl: Decimal | None
+    total_dividends: Decimal | None
+    total_fees: Decimal | None
+    last_transaction_at: datetime | None
+    updated_at: datetime | None

@@ -1,19 +1,19 @@
 import uuid
 from datetime import date as date_type
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from sqlalchemy import select, text
-from app.models.portfolio_snapshot import PortfolioSnapshot
+from sqlalchemy import text
 
 from app.core.auth import get_current_user
 from app.core.db import get_db
 from app.models.user import Profile
-from app.models.portfolio_snapshot import PortfolioSnapshot
 from app.repositories import portfolio_repo
-from app.schemas.portfolio import PortfolioDashboard, PortfolioSummaryResponse, TrendPoint, PortfolioSnapshotRead
+from app.repositories import portfolio_metrics_repo
+from app.schemas.portfolio import PortfolioDashboard, PortfolioSummaryResponse, TrendPoint
+from app.schemas.portfolio_metrics import PortfolioDailyMetricRead, PortfolioMonthlyMetricRead
 
 from app.metrics.portfolio import calculate_portfolio_daily_metrics, calculate_portfolio_monthly_metrics
 
@@ -50,7 +50,7 @@ async def rebuild_portfolio(
     # Sync porque a 3-7s por user es aceptable y simplifica vs background tasks.
     snaps, pos = await portfolio_repo.compute_user_series(db, user.clerk_id)
     n_snaps = await portfolio_repo.replace_snapshots(db, user.clerk_id, snaps)
-    n_pos = await portfolio_repo.replace_positions(db, user.clerk_id, pos)
+    n_pos = await portfolio_repo.replace_positions(db, user, pos)
     return RebuildResult(snapshots_persisted=n_snaps, positions_persisted=n_pos)
 
 
@@ -114,7 +114,17 @@ async def post_daily_portfolio_metrics(
 
     return metrics
 
-@router.get("/metrics/daily")
+@router.get("/metrics/daily", response_model=PortfolioDailyMetricRead)
+async def get_latest_daily_metric(
+    user: Profile = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    metric = await portfolio_metrics_repo.get_latest_daily_metric(db, user.clerk_id)
+    if metric is None:
+        raise HTTPException(status_code=404, detail="No daily metrics found for this portfolio")
+    return metric
+
+@router.get("/metrics/daily/all")
 async def get_daily_portfolio_metrics(
     user: Profile = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -184,7 +194,17 @@ async def post_monthly_portfolio_metrics(
 
     return metrics
 
-@router.get("/metrics/monthly")
+@router.get("/metrics/monthly", response_model=PortfolioMonthlyMetricRead)
+async def get_latest_monthly_metric(
+    user: Profile = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    metric = await portfolio_metrics_repo.get_latest_monthly_metric(db, user.clerk_id)
+    if metric is None:
+        raise HTTPException(status_code=404, detail="No monthly metrics found for this portfolio")
+    return metric
+
+@router.get("/metrics/monthly/all")
 async def get_monthly_portfolio_metrics(
     user: Profile = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),

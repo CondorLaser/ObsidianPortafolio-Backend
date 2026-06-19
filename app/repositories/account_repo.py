@@ -1,6 +1,6 @@
 import uuid
 
-from sqlalchemy import select
+from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -16,7 +16,6 @@ async def list_for_user(
     skip: int = 0,
     limit: int = 10,
 ) -> list[Account]:
-    """ORDER BY created_at DESC — matchea contrato Eduardo (más reciente primero)."""
     result = await session.execute(
         select(Account)
         .where(Account.user_id == clerk_id)
@@ -26,6 +25,55 @@ async def list_for_user(
     )
     return list(result.scalars().all())
 
+async def list_for_user_with_counters(
+    session: AsyncSession, clerk_id: str,
+    skip: int = 0,
+    limit: int = 10,
+) -> list[Account]:
+    from app.models.asset import Asset
+
+    # Subqueries para contar positions por tipo de asset
+    stock_positions = select(func.count(Position.id)).where(
+        Position.account_id == Account.id,
+        Asset.id == Position.asset_id,
+        Asset.kind == 'stock'
+    ).scalar_subquery()
+    
+    fund_positions = select(func.count(Position.id)).where(
+        Position.account_id == Account.id,
+        Asset.id == Position.asset_id,
+        Asset.kind == 'fund'
+    ).scalar_subquery()
+    
+    etf_positions = select(func.count(Position.id)).where(
+        Position.account_id == Account.id,
+        Asset.id == Position.asset_id,
+        Asset.kind == 'etf'
+    ).scalar_subquery()
+    
+    result = await session.execute(
+        select(
+            Account,
+            stock_positions.label('stock_positions'),
+            fund_positions.label('fund_positions'),
+            etf_positions.label('etf_positions'),
+        )
+        .where(Account.user_id == clerk_id)
+        .order_by(Account.created_at.desc())
+        .offset(skip)
+        .limit(limit)
+    )
+    
+    accounts_with_counts = []
+    for row in result.all():
+        accounts_with_counts.append({
+            'account': row[0],
+            'stock_positions': row[1] or 0,
+            'fund_positions': row[2] or 0,
+            'etf_positions': row[3] or 0,
+        })
+    
+    return accounts_with_counts
 
 async def create(
     session: AsyncSession,

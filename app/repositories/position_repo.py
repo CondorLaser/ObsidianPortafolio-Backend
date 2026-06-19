@@ -1,4 +1,4 @@
-from sqlalchemy import text, select
+from sqlalchemy import text, select, func
 import uuid
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -134,3 +134,16 @@ async def get_for_user_and_asset(
     )
     result = await session.execute(stmt)
     return result.scalars().first()
+
+async def count_for_user(
+    session: AsyncSession, 
+    clerk_id: str,
+) -> int:
+    stmt = (
+        select(func.count(Position.id))
+        .select_from(Position)
+        .join(Account, Account.id == Position.account_id)
+        .where(Account.user_id == clerk_id)
+    )
+    result = await session.execute(stmt)
+    return result.scalar() or 0

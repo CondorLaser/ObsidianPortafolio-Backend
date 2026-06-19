@@ -10,6 +10,7 @@ from app.core.db import get_db
 from app.models.user import Profile
 from app.repositories import position_repo
 from app.schemas.position import PositionDerived, PositionRead
+from app.repositories import position_metrics_repo
 from app.metrics.positions import calculate_position_daily_metrics
 
 router = APIRouter(prefix="/positions", tags=["positions"])
@@ -45,6 +46,7 @@ async def list_positions(
     return await position_repo.list_for_user(db, user.clerk_id, skip=skip, limit=limit)
 
 
+# Crea una nueva métrica diaria para la posición
 @router.post("/metrics/daily/{position_id}")
 async def post_daily_positions_metrics(
     position_id: uuid.UUID,
@@ -123,9 +125,10 @@ async def post_daily_positions_metrics(
     await db.commit()
 
     return metrics
-    
 
-@router.get("/metrics/daily/{position_id}")
+# Lista todas las métricas diarias de una posición
+# Con filtros opcionales por tiempo (trend_to, trend_from)
+@router.get("/metrics/daily/{position_id}/all")
 async def get_daily_positions_metrics(
     position_id: uuid.UUID,
     user: Profile = Depends(get_current_user),
@@ -133,43 +136,19 @@ async def get_daily_positions_metrics(
     trend_from: date_type | None = Query(None),
     trend_to: date_type | None = Query(None),
 ):
-    query = """
-        SELECT pdm.*
-        FROM position_daily_metrics pdm
-        JOIN positions p
-            ON p.id = pdm.position_id
-        JOIN accounts a
-            ON a.id = p.account_id
-        WHERE pdm.position_id = :position_id
-          AND a.user_id = :user_id
-    """
-
-    params = {
-        "position_id": position_id,
-        "user_id": user.clerk_id,
-    }
-
-    if trend_from:
-        query += " AND pdm.date >= :trend_from"
-        params["trend_from"] = trend_from
-
-    if trend_to:
-        query += " AND pdm.date <= :trend_to"
-        params["trend_to"] = trend_to
-
-    query += " ORDER BY pdm.date DESC"
-
-    result = await db.execute(
-        text(query),
-        params,
-    )
-
-    metrics = result.mappings().all()
-
+    metrics = await position_metrics_repo.list_daily_metrics(db, user.clerk_id, position_id, trend_from, trend_to)
     if not metrics:
-        raise HTTPException(
-            status_code=404,
-            detail="Position daily metrics not found"
-        )
-
+        raise HTTPException(status_code=404, detail="Position daily metrics not found")
     return metrics
+
+# Obtener la métrica diaria más reciente de esta posición
+@router.get("/metrics/daily/{position_id}")
+async def get_latest_daily_positions_metrics(
+    position_id: uuid.UUID,
+    user: Profile = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    metric = await position_metrics_repo.get_latest_daily_metric(db, user.clerk_id, position_id)  
+    if metric is None:
+        raise HTTPException(status_code=404, detail="No daily metrics found for this position")
+    return metric

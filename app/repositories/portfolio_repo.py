@@ -461,99 +461,97 @@ async def get_dashboard_data(
 # ----------------------------------------------
 # Retorna solo summary + account distibution
 async def get_portfolio_summary_data(session: AsyncSession, clerk_id: str) -> dict:
-    # Obtener el último snapshot guardado en la base de datos
-    latest_snap_q = await session.execute(
+    from app.repositories import position_repo
+
+    # Obtener los últimos 2 snapshot guardados en la base de datos
+    snap_q = await session.execute(
         select(PortfolioSnapshot)
         .where(PortfolioSnapshot.user_id == clerk_id)
         .order_by(PortfolioSnapshot.date.desc())
-        .limit(1)
+        .limit(2)
     )
-    latest: PortfolioSnapshot | None = latest_snap_q.scalar_one_or_none()
+    snaps = snap_q.scalars().all()
+    latest = snaps[0] if snaps else None
+    prev = snaps[1] if len(snaps) > 1 else None
 
-    # Obtener el snapshot inmediatamente previo para calcular el retorno diario
-    prev: PortfolioSnapshot | None = None
-    if latest:
-        prev_snap_q = await session.execute(
-            select(PortfolioSnapshot)
-            .where(PortfolioSnapshot.user_id == clerk_id, PortfolioSnapshot.date < latest.date)
-            .order_by(PortfolioSnapshot.date.desc())
-            .limit(1)
+    # Obtener todas las accounts del user (Obtengo nombre y currency)
+    accs_q = await session.execute(
+        select(Account.id, Account.name, Account.currency).where(
+            Account.user_id == clerk_id
         )
-        prev = prev_snap_q.scalar_one_or_none()
-
-    # Obtener metadatos de las cuentas para armar account distribution
-    accounts_q = await session.execute(
-        select(Account).where(Account.user_id == clerk_id)
     )
-    accounts_meta = accounts_q.scalars().all()
-    account_names = {a.id: a.name for a in accounts_meta}
-    account_currencies = {a.id: a.currency for a in accounts_meta}
+    accounts_meta = {str(r.id): (r.name, r.currency) for r in accs_q.all()}
 
-    # Obtener las posiciones vigentes del usuario
+    # Calcular breakdowns por currency
+    # total_value_by_currency viene del snapshot.breakdown_by_currency.
+    total_value_by_currency: dict[str, Decimal] = {}
+    if latest and latest.breakdown_by_currency:
+        total_value_by_currency = {
+            curr: Decimal(str(amount))
+            for curr, amount in latest.breakdown_by_currency.items()
+        }
+    # Obtengo las positions materializadas (BD) + su cuenta asociada
     pos_q = await session.execute(
-        select(Position)
+        select(Position, Account.currency)
         .join(Account, Account.id == Position.account_id)
         .where(Account.user_id == clerk_id)
     )
-    positions = pos_q.scalars().all()
+    # Calculo total_invested desde positions agrupadas por la currency de su account
+    total_invested_by_currency: dict[str, Decimal] = {}
+    for pos, curr in pos_q.all():
+        invested = (pos.quantity or ZERO) * (pos.avg_cost or ZERO)
+        total_invested_by_currency[curr] = (
+            total_invested_by_currency.get(curr, ZERO) + invested
+        )
+    # Caclulo unrealized_by_currency = total_value - total_invested por currency
+    all_currencies = set(total_value_by_currency) | set(total_invested_by_currency)
+    unrealized_pnl_by_currency = {
+        curr: total_value_by_currency.get(curr, ZERO)
+        - total_invested_by_currency.get(curr, ZERO)
+        for curr in all_currencies
+    }
 
-    # Calcular la distribución
-    dist_by_acc: dict[uuid.UUID, Decimal] = {}
-    if latest and latest.breakdown_by_account:
-        for acc_id_str, val in latest.breakdown_by_account.items():
-            try:
-                dist_by_acc[uuid.UUID(acc_id_str)] = Decimal(str(val))
-            except ValueError:
-                continue
-    total_val_snapshots = sum(dist_by_acc.values()) if dist_by_acc else Decimal("0")
-
+    # Calculo account distribution basado en el breakdown_by_account del latest snapshot
+    # % considera solo contra el TOTAL DE LA MISMA CURRENCY (no mezcla distintas monedas)
     distribution = []
-    for acc_id, amt in dist_by_acc.items():
-        pct = (amt / total_val_snapshots) if total_val_snapshots > 0 else Decimal("0")
-        distribution.append({
-            "account_id": acc_id,
-            "name": account_names.get(acc_id, f"Cuenta {str(acc_id)[:6]}"),
-            "amount": amt,
-            "percentage": pct,
-            "currency": account_currencies.get(acc_id, "USD")
-        })
+    if latest and latest.breakdown_by_account:
+        for acc_id_str, amount in latest.breakdown_by_account.items():
+            amount_dec = Decimal(str(amount))
+            name, curr = accounts_meta.get(acc_id_str, ("Cuenta", "USD"))
+            total_curr = total_value_by_currency.get(curr, ZERO)
+            distribution.append(
+                {
+                    "account_id": uuid.UUID(acc_id_str),
+                    "name": name,
+                    "amount": amount_dec,
+                    "percentage": (
+                        (amount_dec / total_curr) if total_curr > 0 else ZERO
+                    ),
+                    "currency": curr,
+                }
+            )
 
-    # Procesar inversiones, totales y no realizados por moneda
-    total_value_by_currency = {}
-    total_invested_by_currency = {}
-    unrealized_pnl_by_currency = {}
+    # Obtengo la cantidas de positons del usuario
+    n_positions = await position_repo.count_for_user(session, clerk_id)
+    # Calculo valores globales según si hay 1 o varias currencies/monedas 
+    # si hay UNA sola currency se calculan todos los valores globales / scalar
+    # si hay múltiples, NULL en escalares y el frontend usa los *_by_currency.
+    user_currencies = set(c for _, c in accounts_meta.values())
+    is_single_currency = len(user_currencies) == 1
 
-    if latest:
-        if latest.breakdown_by_currency:
-            for cur, val in latest.breakdown_by_currency.items():
-                total_value_by_currency[cur] = Decimal(str(val))
-        
-        # Calcular los invertidos a partir de las posiciones materializadas
-        for p in positions:
-            cur = account_currencies.get(p.account_id, "USD")
-            
-            # SOLUCIÓN: Calcular invested = quantity * avg_cost (manejando Nones)
-            qty = p.quantity if p.quantity is not None else Decimal("0")
-            cost = p.avg_cost if p.avg_cost is not None else Decimal("0")
-            p_invested = qty * cost
-            
-            total_invested_by_currency[cur] = total_invested_by_currency.get(cur, Decimal("0")) + p_invested
+    if is_single_currency:
+        only = next(iter(user_currencies))
+        scalar_value = total_value_by_currency.get(only, ZERO)
+        scalar_invested = total_invested_by_currency.get(only, ZERO)
+        scalar_unrealized = unrealized_pnl_by_currency.get(only, ZERO)
+    else:
+        scalar_value = None
+        scalar_invested = None
+        scalar_unrealized = None
 
-        # Calcular Unrealized PnL por moneda
-        for cur, v_val in total_value_by_currency.items():
-            i_val = total_invested_by_currency.get(cur, Decimal("0"))
-            unrealized_pnl_by_currency[cur] = v_val - i_val
-
-    # Lógica multi-moneda (si tiene 1 sola moneda, se exponen escalares limpios = valor unificado)
-    unique_currencies = set(account_currencies.values())
-    is_single_currency = len(unique_currencies) == 1
-    main_currency = list(unique_currencies)[0] if is_single_currency else None
-
-    scalar_value = total_value_by_currency.get(main_currency) if is_single_currency else None
-    scalar_invested = total_invested_by_currency.get(main_currency) if is_single_currency else None
-    scalar_unrealized = unrealized_pnl_by_currency.get(main_currency) if is_single_currency else None
-
-    return_pct = None
+    # total_return_pct se calcula solo cuando hay 1 currency y un snapshot
+    # previo válido (sin FX, comparar valores multi-currency no tiene sentido).
+    return_pct: Decimal | None = None
     if is_single_currency and latest and prev and latest.total_value and prev.total_value:
         prev_v = Decimal(str(prev.total_value))
         if prev_v > 0:
@@ -567,7 +565,7 @@ async def get_portfolio_summary_data(session: AsyncSession, clerk_id: str) -> di
         "total_invested_by_currency": total_invested_by_currency,
         "unrealized_pnl_by_currency": unrealized_pnl_by_currency,
         "total_return_pct": return_pct,
-        "active_positions": len(positions),
+        "active_positions": n_positions,
         "linked_accounts": len(accounts_meta),
         "last_snapshot_date": latest.date if latest else None,
     }

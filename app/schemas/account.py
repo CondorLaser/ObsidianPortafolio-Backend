@@ -30,6 +30,11 @@ class AccountRead(BaseModel):
     created_at: datetime
     user_id: str  # clerk_id (varchar)
 
+class AccountWithCountersRead(BaseModel):
+    account: AccountRead
+    stock_positions: int = 0
+    fund_positions: int = 0
+    etf_positions: int = 0
 
 class AccountDetailRead(AccountRead):
     """1:1 con contrato Eduardo: account + dividends + positions + transactions."""
