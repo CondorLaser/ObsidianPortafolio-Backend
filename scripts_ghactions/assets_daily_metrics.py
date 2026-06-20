@@ -7,6 +7,7 @@ from psycopg2.extras import execute_values
 import requests
 
 
+
 #ACA HACEMOS EL UPDATE DE LAS MÉTRICAS DIARIAS    
 
 def connection_bdd():
@@ -99,7 +100,6 @@ for asset_id, returns in daily_return_dict.items():
     info_volatility.append((asset_id, last_date, float(volatility)))
 
 
-conn, cur = connection_bdd()
 
 print(len(info_volatility))
 execute_values(

@@ -8,6 +8,7 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base
+from sqlalchemy import UniqueConstraint
 
 if TYPE_CHECKING:
     from app.models.asset import Asset
@@ -15,6 +16,9 @@ if TYPE_CHECKING:
 
 class AssetDailyMetric(Base):
     __tablename__ = "asset_daily_metrics"
+    __table_args__ = (
+        UniqueConstraint("asset_id", "date", name="asset_daily_metrics_asset_id_date_key"),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
@@ -34,6 +38,9 @@ class AssetDailyMetric(Base):
 
 class AssetMonthlyMetric(Base):
     __tablename__ = "asset_monthly_metrics"
+    __table_args__ = (
+        UniqueConstraint("asset_id", "date", name="asset_monthly_metrics_asset_id_date_key"),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4

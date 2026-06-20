@@ -23,6 +23,7 @@
 | **prices** | 2 (`/assets/{asset_id}/prices`) |
 | **profile** | 2 (`/profile`) |
 | **transactions** | 2 (`/transactions`) |
+| **warnings** | 2 (`/warnings`, `/warnings/{alert_id}`) |
 | **webhooks** | 1 (`/webhooks/clerk`) |
 
 
@@ -870,6 +871,7 @@ HTTPValidationError: {
 ### `GET` `/positions/asset/{asset_id}`
 
 Get Position By Asset
+Get Position By Asset
 
 **Path params**:
 
@@ -952,6 +954,7 @@ HTTPValidationError: {
 
 ### `GET` `/positions/portfolio`
 
+List Positions Portfolio
 List Positions Portfolio
 
 **Query params**:
@@ -1256,6 +1259,94 @@ TransactionRead: {
     id: string (uuid)
     created_at: string (date-time)
     asset: `AssetRead`
+  }
+```
+
+**Response 422** — Validation Error:
+
+```
+HTTPValidationError: {
+    detail?: array of `ValidationError`
+  }
+```
+
+---
+
+
+## warnings
+
+### `GET` `/warnings`
+
+List Warnings
+
+**Query params**:
+
+- `is_read` (boolean | null, optional) — Filtrar por avisos leídos
+- `is_active` (boolean | null, optional) — Filtrar por avisos activos
+
+**Response 200** — Successful Response:
+
+```
+array of AlertRead:
+{
+    id: string (uuid)
+    user_id: string
+    type: string
+    trigger_field: string
+    trigger_value: string
+    threshold_value: string
+    msg: string
+    is_read: boolean
+    created_at: string (date-time)
+    notified_at: string (date-time) | null
+    last_triggered: string (date) | null
+    is_active: boolean
+  }
+```
+
+**Response 422** — Validation Error:
+
+```
+HTTPValidationError: {
+    detail?: array of `ValidationError`
+  }
+```
+
+---
+
+### `PATCH` `/warnings/{alert_id}`
+
+Update Warning
+
+**Path params**:
+
+- `alert_id`: string (uuid)
+
+**Request body** (application/json):
+
+```
+AlertUpdate: {
+    is_read?: boolean | null
+    is_active?: boolean | null
+  }
+```
+
+**Response 200** — Successful Response:
+
+```
+AlertRead: {
+    id: string (uuid)
+    user_id: string
+    type: string
+    trigger_field: string
+    trigger_value: string
+    threshold_value: string
+    msg: string
+    is_read: boolean
+    created_at: string (date-time)
+    notified_at: string (date-time) | null
+    last_triggered: string (date) | null
+    is_active: boolean
   }
 ```
 

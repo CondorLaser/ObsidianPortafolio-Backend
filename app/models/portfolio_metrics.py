@@ -3,7 +3,7 @@ from datetime import date as date_type
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Date, ForeignKey, Numeric
+from sqlalchemy import Date, ForeignKey, Numeric, String
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -24,6 +24,7 @@ class PortfolioDailyMetric(Base):
         ForeignKey("portfolio_snapshots.id", ondelete="CASCADE"),
         nullable=False,
     )
+    user_id: Mapped[str] = mapped_column(String, nullable=False)
     date: Mapped[date_type | None] = mapped_column(Date, nullable=True)
     pnl: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     max_drawdown: Mapped[dict | None] = mapped_column(JSONB, nullable=True)

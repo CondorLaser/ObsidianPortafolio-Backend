@@ -21,7 +21,8 @@ from app.routers import (
     profile,
     transactions,
     webhooks,
-)
+    warnings,
+) 
 
 settings = get_settings()
 
@@ -64,3 +65,4 @@ app.include_router(dividends.router)
 app.include_router(pdf.router)
 app.include_router(heartbeat.router)
 app.include_router(webhooks.router)
+app.include_router(warnings.router)
