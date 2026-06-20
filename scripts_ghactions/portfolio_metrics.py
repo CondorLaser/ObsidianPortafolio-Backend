@@ -4,6 +4,7 @@ import asyncio
 import os
 import sys
 import time
+import json
 import traceback
 
 sys.path.insert(
@@ -55,13 +56,8 @@ async def main() -> int:
                 if not snapshots:
                     continue
 
-                daily = calculate_portfolio_daily_metrics(
-                    snapshots
-                )
-
-                monthly = calculate_portfolio_monthly_metrics(
-                    snapshots
-                )
+                daily = calculate_portfolio_daily_metrics(snapshots)
+                monthly = calculate_portfolio_monthly_metrics(snapshots)
 
                 await db.execute(
                     text("""
@@ -88,9 +84,9 @@ async def main() -> int:
                         "id": str(uuid.uuid4()),
                         "user_id": clerk_id,
                         "date": daily["date"],
-                        "pnl": daily["pnl"],
-                        "max_drawdown": daily["max_drawdown"],
-                        "volatility": daily["volatility"],
+                        "pnl": json.dumps(daily["pnl"]),
+                        "max_drawdown": json.dumps(daily["max_drawdown"]),
+                        "volatility": json.dumps(daily["volatility"]),
                     },
                 )
 
@@ -117,8 +113,8 @@ async def main() -> int:
                         "id": str(uuid.uuid4()),
                         "user_id": clerk_id,
                         "date": monthly["date"],
-                        "twr": monthly["twr"],
-                        "var": monthly["var"],
+                        "twr": json.dumps(monthly["twr"]),
+                        "var": json.dumps(monthly["var"]),
                     },
                 )
 
