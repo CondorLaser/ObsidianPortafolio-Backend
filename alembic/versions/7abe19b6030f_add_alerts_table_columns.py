@@ -32,7 +32,7 @@ def upgrade() -> None:
                existing_type=sa.VARCHAR(length=3),
                nullable=True,
                existing_server_default=sa.text("'USD'::character varying"))
-    op.drop_constraint(op.f('assets_symbol_name_unique'), 'assets', type_='unique')
+    #op.drop_constraint(op.f('assets_symbol_name_unique'), 'assets', type_='unique')
     #op.add_column('portfolio_daily_metrics', sa.Column('portfolio_id', sa.UUID(), nullable=False))
     #op.drop_constraint(op.f('portfolio_daily_user_id_fk'), 'portfolio_daily_metrics', type_='foreignkey')
     #op.create_foreign_key(None, 'portfolio_daily_metrics', 'portfolio_snapshots', ['portfolio_id'], ['id'], ondelete='CASCADE')
