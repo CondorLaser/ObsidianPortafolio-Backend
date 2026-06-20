@@ -26,7 +26,7 @@ class RebuildResult(BaseModel):
     positions_persisted: int
 
 
-""" @router.get("/dashboard", response_model=PortfolioDashboard)
+@router.get("/dashboard", response_model=PortfolioDashboard)
 async def get_dashboard(
     user: Profile = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -39,7 +39,7 @@ async def get_dashboard(
 ):
     return await portfolio_repo.get_dashboard_data(
         db, user.clerk_id, trend_from=trend_from, trend_to=trend_to,
-    ) """
+    ) 
 
 
 @router.post("/rebuild", response_model=RebuildResult)

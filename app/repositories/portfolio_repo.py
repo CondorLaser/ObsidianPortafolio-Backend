@@ -294,161 +294,32 @@ async def replace_positions(
 # ────────────────────────────────────────────────────────────────────────
 # TODO: Plantear eliminarlo para solo usar la versión summary, trend + postions
 # (por un tema de ser menos demandante)
-""" async def get_dashboard_data(
+async def get_dashboard_data(
     session: AsyncSession,
     clerk_id: str,
     trend_from: date_type | None = None,
     trend_to: date_type | None = None,
 ) -> dict:
-    # Lee portfolio_snapshots + accounts + (compute positions on-the-fly via
-    # position_repo). trend_from/trend_to filtran la serie del trend
-    # from app.repositories import position_repo  # import local para evitar ciclo
-
-    # latest snapshot (independiente del rango de trend)
-    snapshots_query = await session.execute(
-        select(PortfolioSnapshot)
-        .where(PortfolioSnapshot.user_id == clerk_id)
-        .order_by(PortfolioSnapshot.date.desc())
-        .limit(2)
-    )
-    snapshots = snapshots_query.scalars().all()
-    latest = snapshots[0] if snapshots else None
-    prev = snapshots[1] if len(snapshots) > 1 else None
-
-    # trend (filtrado por rango opcional)
-    trend_stmt = (
-        select(PortfolioSnapshot.date, PortfolioSnapshot.total_value)
-        .where(PortfolioSnapshot.user_id == clerk_id)
-        .order_by(PortfolioSnapshot.date.asc())
-    )
-    if trend_from is not None:
-        trend_stmt = trend_stmt.where(PortfolioSnapshot.date >= trend_from)
-    if trend_to is not None:
-        trend_stmt = trend_stmt.where(PortfolioSnapshot.date <= trend_to)
-    trend_q = await session.execute(trend_stmt)
-    trend = [
-        {"date": r.date, "value": r.total_value or ZERO}
-        for r in trend_q.all()
-        if r.date is not None
-    ]
-
-    # accounts del user (para nombre/currency)
-    accs_q = await session.execute(
-        select(Account.id, Account.name, Account.currency).where(
-            Account.user_id == clerk_id
-        )
-    )
-    accounts_meta = {str(r.id): (r.name, r.currency) for r in accs_q.all()}
-
-    # ── breakdowns por currency ──
-    # total_value_by_currency viene del snapshot.breakdown_by_currency.
-    # total_invested/unrealized se recomputan desde positions (que están
-    # materializadas por el cron) agrupadas por la currency de su account.
-    total_value_by_currency: dict[str, Decimal] = {}
-    if latest and latest.breakdown_by_currency:
-        total_value_by_currency = {
-            curr: Decimal(str(amount))
-            for curr, amount in latest.breakdown_by_currency.items()
-        }
-
-    # positions materializadas (1 row por par account+asset)
-    pos_q = await session.execute(
-        select(Position, Account.currency)
-        .join(Account, Account.id == Position.account_id)
-        .where(Account.user_id == clerk_id)
-    )
-    total_invested_by_currency: dict[str, Decimal] = {}
-    for pos, curr in pos_q.all():
-        invested = (pos.quantity or ZERO) * (pos.avg_cost or ZERO)
-        total_invested_by_currency[curr] = (
-            total_invested_by_currency.get(curr, ZERO) + invested
-        )
-
-    # unrealized_by_currency = total_value - total_invested por currency
-    all_currencies = set(total_value_by_currency) | set(total_invested_by_currency)
-    unrealized_pnl_by_currency = {
-        curr: total_value_by_currency.get(curr, ZERO)
-        - total_invested_by_currency.get(curr, ZERO)
-        for curr in all_currencies
-    }
-
-    # account distribution = breakdown_by_account del latest snapshot.
-    # percentage normaliza solo contra el TOTAL DE LA MISMA CURRENCY (no
-    # mezclamos CLP+USD en el denominador).
-    distribution = []
-    if latest and latest.breakdown_by_account:
-        for acc_id_str, amount in latest.breakdown_by_account.items():
-            amount_dec = Decimal(str(amount))
-            name, curr = accounts_meta.get(acc_id_str, ("Cuenta", "USD"))
-            total_curr = total_value_by_currency.get(curr, ZERO)
-            distribution.append(
-                {
-                    "account_id": uuid.UUID(acc_id_str),
-                    "name": name,
-                    "amount": amount_dec,
-                    "percentage": (
-                        (amount_dec / total_curr) if total_curr > 0 else ZERO
-                    ),
-                    "currency": curr,
-                }
-            )
-
-    # TODO: el cron ahora materializa la tabla `positions`, pero acá seguimos
-    # recomputando on-the-fly via position_repo (que hace su propio SQL).
-    # Conviene leer de `positions` directamente y joinear con `assets` para
-    # symbol/name + último asset_price para market_value. Se mantiene como
-    # estaba para no romper el shape de PositionDerived.
-    #
-    # Usa list_for_user_portfolio (derivada en runtime → PositionDerived con
-    # last_price/market_value/unrealized_pnl). NO usar list_for_user, que tras
-    # la PR #29 devuelve la posición materializada (shape distinto). El dashboard
-    # quiere TODAS las posiciones activas, así que se sube el limit.
-    positions = await position_repo.list_for_user_portfolio(
-        session, clerk_id, limit=10_000
-    )
-
-    # summary: si hay UNA sola currency llenamos los Decimal escalares;
-    # si hay múltiples, NULL en escalares y el frontend usa los *_by_currency.
-    user_currencies = set(c for _, c in accounts_meta.values())
-    is_single_currency = len(user_currencies) == 1
-
-    if is_single_currency:
-        only = next(iter(user_currencies))
-        scalar_value = total_value_by_currency.get(only, ZERO)
-        scalar_invested = total_invested_by_currency.get(only, ZERO)
-        scalar_unrealized = unrealized_pnl_by_currency.get(only, ZERO)
-    else:
-        scalar_value = None
-        scalar_invested = None
-        scalar_unrealized = None
-
-    # total_return_pct se calcula solo cuando hay 1 currency y un snapshot
-    # previo válido (sin FX, comparar valores multi-currency no tiene sentido).
-    return_pct: Decimal | None = None
-    if is_single_currency and latest and prev and latest.total_value and prev.total_value:
-        prev_v = Decimal(str(prev.total_value))
-        if prev_v > 0:
-            return_pct = (Decimal(str(latest.total_value)) - prev_v) / prev_v
-
-    summary = {
-        "total_value": scalar_value,
-        "total_invested": scalar_invested,
-        "unrealized_pnl": scalar_unrealized,
-        "total_value_by_currency": total_value_by_currency,
-        "total_invested_by_currency": total_invested_by_currency,
-        "unrealized_pnl_by_currency": unrealized_pnl_by_currency,
-        "total_return_pct": return_pct,
-        "active_positions": len(positions),
-        "linked_accounts": len(accounts_meta),
-        "last_snapshot_date": latest.date if latest else None,
-    }
-
+    """Retorna dashboard completo orquestando las tres funciones especializadas.
+    
+    Combina:
+    - Summary: métricas totales + distribución por cuenta
+    - Trend: serie temporal filtrada por rango de fechas
+    - Positions: listado de posiciones activas con valuaciones derivadas
+    """
+    from app.repositories import position_repo
+    
+    # Ejecutar las tres queries en paralelo (podrían ser concurrentes)
+    summary_data = await get_portfolio_summary_data(session, clerk_id)
+    trend = await get_portfolio_trend_data(session, clerk_id, trend_from, trend_to)
+    positions = await position_repo.list_for_user_portfolio(session, clerk_id, limit=10_000)
+    
     return {
-        "summary": summary,
+        "summary": summary_data["summary"],
         "trend": trend,
-        "account_distribution": distribution,
+        "account_distribution": summary_data["account_distribution"],
         "positions": positions,
-    } """
+    }
 
 
 # ----------------------------------------------
