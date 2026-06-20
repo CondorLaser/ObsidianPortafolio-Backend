@@ -1,4 +1,5 @@
 import uuid
+import json
 from datetime import date as date_type
 
 from fastapi import APIRouter, Depends, Query, HTTPException
@@ -25,7 +26,7 @@ class RebuildResult(BaseModel):
     positions_persisted: int
 
 
-@router.get("/dashboard", response_model=PortfolioDashboard)
+""" @router.get("/dashboard", response_model=PortfolioDashboard)
 async def get_dashboard(
     user: Profile = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -38,7 +39,7 @@ async def get_dashboard(
 ):
     return await portfolio_repo.get_dashboard_data(
         db, user.clerk_id, trend_from=trend_from, trend_to=trend_to,
-    )
+    ) """
 
 
 @router.post("/rebuild", response_model=RebuildResult)
@@ -105,9 +106,9 @@ async def post_daily_portfolio_metrics(
             "id": metric_id,
             "user_id": user.clerk_id,
             "date": metrics["date"],
-            "pnl": metrics["pnl"],
-            "max_drawdown": metrics["max_drawdown"],
-            "volatility": metrics["volatility"],
+            "pnl": json.dumps(metrics["pnl"]),
+            "max_drawdown": json.dumps(metrics["max_drawdown"]),
+            "volatility": json.dumps(metrics["volatility"]),
         },
     )
     await db.commit()
@@ -186,8 +187,8 @@ async def post_monthly_portfolio_metrics(
             "id": metric_id,
             "user_id": user.clerk_id,
             "date": metrics["date"],
-            "twr": metrics["twr"],
-            "var": metrics["var"],
+            "twr": json.dumps(metrics["twr"]),
+            "var": json.dumps(metrics["var"]),
         },
     )
     await db.commit()

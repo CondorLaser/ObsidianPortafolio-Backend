@@ -9,9 +9,9 @@ class PortfolioDailyMetricRead(BaseModel):
 
     id: uuid.UUID
     date: date_type | None
-    pnl: Decimal | None
-    max_drawdown: Decimal | None
-    volatility: Decimal | None
+    pnl: dict | None
+    max_drawdown: dict | None
+    volatility: dict | None
 
 
 class PortfolioMonthlyMetricRead(BaseModel):
@@ -19,5 +19,5 @@ class PortfolioMonthlyMetricRead(BaseModel):
 
     id: uuid.UUID
     date: date_type | None
-    twr: Decimal | None
-    var: Decimal | None
+    twr: dict | None
+    var: dict | None

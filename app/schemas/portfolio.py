@@ -15,10 +15,10 @@ class PortfolioSnapshotRead(BaseModel):
     id: uuid.UUID
     user_id: str
     date: date_type | None
-    total_value: Decimal | None
-    total_invested: Decimal | None
-    unrealized_pnl: Decimal | None
-    realized_pnl: Decimal | None
+    total_value: dict | None
+    total_invested: dict | None
+    unrealized_pnl: dict | None
+    realized_pnl: dict | None
     breakdown_by_currency: dict | None
     breakdown_by_account: dict | None
 
