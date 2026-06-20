@@ -11,14 +11,12 @@ def calculate_portfolio_daily_metrics(snapshots: list[dict]) -> dict:
             "max_drawdown": {},
             "volatility": {},
         }
-    
     return {
         "date": snapshots[-1]["date"],
         "pnl": calculate_pnl(snapshots),
         "max_drawdown": calculate_max_drawdown(snapshots),
         "volatility": calculate_volatility(snapshots),
     }
-
 
 def calculate_portfolio_monthly_metrics(snapshots: list) -> dict:
     if not snapshots:
@@ -27,23 +25,19 @@ def calculate_portfolio_monthly_metrics(snapshots: list) -> dict:
             "twr": {},
             "var": {},
         }
-    
     end_date = snapshots[-1].date
+    # Filtrar periodo de tiempo aprovechando timedelta
     start_date = end_date - timedelta(days=30)
-
     filtered_snapshots = [s for s in snapshots if s.date >= start_date]
-    
     return {
         "date": filtered_snapshots[-1].date if filtered_snapshots else None,
         "twr": calculate_twr(filtered_snapshots),
         "var": calculate_var(filtered_snapshots),
     } 
 
-
 def calculate_pnl(snapshots: list[dict]) -> dict:
     if len(snapshots) < 2:
         return {}
-
     today_snapshot = snapshots[-1]
     yesterday_snapshot = snapshots[-2]
 
@@ -56,7 +50,7 @@ def calculate_pnl(snapshots: list[dict]) -> dict:
     # Consolidar todas las monedas existentes
     all_currencies = set(today_realized.keys()) | set(today_unrealized.keys()) | \
                      set(yesterday_realized.keys()) | set(yesterday_unrealized.keys())
-
+    # Calcular Pnl
     pnl_by_currency = {}
     for curr in all_currencies:
         today_r = Decimal(str(today_realized.get(curr, "0")))
@@ -68,23 +62,21 @@ def calculate_pnl(snapshots: list[dict]) -> dict:
         yesterday_total = yesterday_r + yesterday_u
         
         pnl_by_currency[curr] = str(today_total - yesterday_total)
-
+    
     return pnl_by_currency
 
 
 def calculate_max_drawdown(snapshots: list[dict]) -> dict:
     if not snapshots:
         return {}
-
     peaks = {}
     max_drawdowns = {}
-
+    # Iteración por todas las snapshots para obtener max_drawdown
     for snapshot in snapshots:
         total_values = snapshot.get("total_value") or {}
         
         for curr, val_str in total_values.items():
             value = Decimal(str(val_str))
-            
             # Inicializar variables para una moneda nueva
             if curr not in peaks:
                 peaks[curr] = value
@@ -98,7 +90,7 @@ def calculate_max_drawdown(snapshots: list[dict]) -> dict:
                 if drawdown < max_drawdowns[curr]:
                     max_drawdowns[curr] = drawdown
 
-    # Retornar diccionarios formateados a String para ser guardados en BD
+    # Retornar diccionarios formateados a String para guardarlos en BD
     return {curr: str(md) for curr, md in max_drawdowns.items()}
 
 
@@ -112,36 +104,37 @@ def calculate_volatility(snapshots: list) -> dict:
         prev_snapshot = snapshots[i - 1]
         curr_snapshot = snapshots[i]
         
-        # El denominador siempre será el valor total que el usuario tenía ayer
         prev_values = prev_snapshot.get("total_value") or {}
+        curr_values = curr_snapshot.get("total_value") or {}
         
-        # Extraemos los PnL acumulados (Realizados + No Realizados) de hoy y ayer
         today_realized = curr_snapshot.get("realized_pnl") or {}
         today_unrealized = curr_snapshot.get("unrealized_pnl") or {}
         yesterday_realized = prev_snapshot.get("realized_pnl") or {}
         yesterday_unrealized = prev_snapshot.get("unrealized_pnl") or {}
         
-        # Consolidamos todas las monedas presentes en este paso temporal
-        all_currencies = set(prev_values.keys()) | set(today_realized.keys()) | set(today_unrealized.keys())
+        all_currencies = set(prev_values.keys()) | set(curr_values.keys()) | set(today_realized.keys()) | set(today_unrealized.keys())
         
         for curr in all_currencies:
             prev_val = Decimal(str(prev_values.get(curr, "0")))
+            today_val = Decimal(str(curr_values.get(curr, "0")))
             
-            # FILTRO ANTI-POLVO: Si el portafolio ayer era insignificante, ignoramos el retorno de ese día
-            # Evita que pasar de $0.1 USD a $5 USD arruine la métrica.
-            threshold = Decimal("1") if curr == "USD" else Decimal("1000")
-            if prev_val < threshold:
-                continue
-            
-            # 1. Calcular PnL total acumulado de hoy y de ayer para la moneda
+            # 1. Calcular PnL neto del día (Numerador)
             today_total_pnl = Decimal(str(today_realized.get(curr, "0"))) + Decimal(str(today_unrealized.get(curr, "0")))
             yesterday_total_pnl = Decimal(str(yesterday_realized.get(curr, "0"))) + Decimal(str(yesterday_unrealized.get(curr, "0")))
             
-            # 2. PnL neto generado estrictamente por el mercado HOY
             daily_pnl = today_total_pnl - yesterday_total_pnl
             
-            # 3. Retorno del día = Ganancia del día / Capital expuesto ayer
-            period_return = daily_pnl / prev_val
+            # 2. Calcular la Base de Capital (Denominador Dinámico)
+            # Esto resuelve los depósitos iniciales gigantescos y retiros masivos.
+            capital_basis = max(prev_val, today_val - daily_pnl)
+            
+            # 3. Filtro Anti-Polvo sobre la base de capital real
+            threshold = Decimal("1") if curr == "USD" else Decimal("1000")
+            if capital_basis < threshold:
+                continue
+            
+            # 4. Retorno real de mercado aislado de flujos de caja
+            period_return = daily_pnl / capital_basis
             
             if curr not in returns_by_currency:
                 returns_by_currency[curr] = []
@@ -157,7 +150,6 @@ def calculate_volatility(snapshots: list) -> dict:
             
     return volatility_by_currency
 
-
 def calculate_twr(snapshots: list) -> dict:
     if len(snapshots) < 2:
         return {}
@@ -169,27 +161,32 @@ def calculate_twr(snapshots: list) -> dict:
         curr_snapshot = snapshots[i]
         
         prev_values = prev_snapshot.get("total_value") or {}
+        curr_values = curr_snapshot.get("total_value") or {}
         
         today_realized = curr_snapshot.get("realized_pnl") or {}
         today_unrealized = curr_snapshot.get("unrealized_pnl") or {}
         yesterday_realized = prev_snapshot.get("realized_pnl") or {}
         yesterday_unrealized = prev_snapshot.get("unrealized_pnl") or {}
         
-        all_currencies = set(prev_values.keys()) | set(today_realized.keys()) | set(today_unrealized.keys())
+        all_currencies = set(prev_values.keys()) | set(curr_values.keys()) | set(today_realized.keys()) | set(today_unrealized.keys())
         
         for curr in all_currencies:
             prev_val = Decimal(str(prev_values.get(curr, "0")))
+            today_val = Decimal(str(curr_values.get(curr, "0")))
             
-            threshold = Decimal("1") if curr == "USD" else Decimal("1000")
-            if prev_val < threshold:
-                continue
-            
-            # Mismo cálculo de retorno limpio basado en PnL Diario
             today_total_pnl = Decimal(str(today_realized.get(curr, "0"))) + Decimal(str(today_unrealized.get(curr, "0")))
             yesterday_total_pnl = Decimal(str(yesterday_realized.get(curr, "0"))) + Decimal(str(yesterday_unrealized.get(curr, "0")))
             
             daily_pnl = today_total_pnl - yesterday_total_pnl
-            period_return = daily_pnl / prev_val
+            
+            # Aplicamos la misma Base de Capital al Time-Weighted Return
+            capital_basis = max(prev_val, today_val - daily_pnl)
+            
+            threshold = Decimal("1") if curr == "USD" else Decimal("1000")
+            if capital_basis < threshold:
+                continue
+            
+            period_return = daily_pnl / capital_basis
             
             if curr not in multipliers:
                 multipliers[curr] = Decimal("1")
