@@ -217,3 +217,4 @@ docs/pdfs/
 
 # Microsoft Office lock files (mientras un .docx está abierto)
 ~$*
+alembic/_archived_versions/
