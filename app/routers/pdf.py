@@ -25,9 +25,10 @@ from scripts.processing_pdf import (
 
 from scripts.warnings_module import warnings
 from app.repositories.portfolio_repo import reconstruct_user_portfolio
-from app.routers.portfolio import post_daily_portfolio_metrics, post_monthly_portfolio_metricsfrom scripts.warnings_module import warnings
-
-
+from app.routers.portfolio import (
+    post_daily_portfolio_metrics,
+    post_monthly_portfolio_metrics,
+)
 router = APIRouter(prefix="/pdf", tags=["pdf"])
 
 
