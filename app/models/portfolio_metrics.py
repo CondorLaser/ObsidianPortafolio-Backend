@@ -26,10 +26,9 @@ class PortfolioDailyMetric(Base):
     )
     user_id: Mapped[str] = mapped_column(String, nullable=False)
     date: Mapped[date_type | None] = mapped_column(Date, nullable=True)
-    pnl: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
-    max_drawdown: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
-    volatility: Mapped[Decimal | None] = mapped_column(Numeric(8, 6), nullable=True)
-    fx_decomposition: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    pnl: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    max_drawdown: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    volatility: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
 
     portfolio: Mapped["PortfolioSnapshot"] = relationship(back_populates="daily_metrics")
 
@@ -46,9 +45,7 @@ class PortfolioMonthlyMetric(Base):
         nullable=False,
     )
     date: Mapped[date_type | None] = mapped_column(Date, nullable=True)
-    twr: Mapped[Decimal | None] = mapped_column(Numeric(10, 8), nullable=True)
-    dietz: Mapped[Decimal | None] = mapped_column(Numeric(10, 8), nullable=True)
-    var: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
-    accounts_correlation: Mapped[Decimal | None] = mapped_column(Numeric(5, 4), nullable=True)
+    twr: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    var: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
 
     portfolio: Mapped["PortfolioSnapshot"] = relationship(back_populates="monthly_metrics")
