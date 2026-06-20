@@ -40,13 +40,11 @@ def calculate_pnl(snapshots: list[dict]) -> dict:
         return {}
     today_snapshot = snapshots[-1]
     yesterday_snapshot = snapshots[-2]
-
     # Extraer los diccionarios, usando dicts vacíos si son None
     today_realized = today_snapshot.get("realized_pnl") or {}
     today_unrealized = today_snapshot.get("unrealized_pnl") or {}
     yesterday_realized = yesterday_snapshot.get("realized_pnl") or {}
     yesterday_unrealized = yesterday_snapshot.get("unrealized_pnl") or {}
-
     # Consolidar todas las monedas existentes
     all_currencies = set(today_realized.keys()) | set(today_unrealized.keys()) | \
                      set(yesterday_realized.keys()) | set(yesterday_unrealized.keys())
@@ -89,7 +87,6 @@ def calculate_max_drawdown(snapshots: list[dict]) -> dict:
                 drawdown = (value - peaks[curr]) / peaks[curr]
                 if drawdown < max_drawdowns[curr]:
                     max_drawdowns[curr] = drawdown
-
     # Retornar diccionarios formateados a String para guardarlos en BD
     return {curr: str(md) for curr, md in max_drawdowns.items()}
 
@@ -97,9 +94,8 @@ def calculate_max_drawdown(snapshots: list[dict]) -> dict:
 def calculate_volatility(snapshots: list) -> dict:
     if len(snapshots) < 2:
         return {}
-    
     returns_by_currency = {}
-    
+    # Itero a lo largo de todas las snapshots
     for i in range(1, len(snapshots)):
         prev_snapshot = snapshots[i - 1]
         curr_snapshot = snapshots[i]
@@ -113,47 +109,42 @@ def calculate_volatility(snapshots: list) -> dict:
         yesterday_unrealized = prev_snapshot.get("unrealized_pnl") or {}
         
         all_currencies = set(prev_values.keys()) | set(curr_values.keys()) | set(today_realized.keys()) | set(today_unrealized.keys())
-        
+        # Calculo según cada cuenta
         for curr in all_currencies:
             prev_val = Decimal(str(prev_values.get(curr, "0")))
             today_val = Decimal(str(curr_values.get(curr, "0")))
-            
+            # Cambio la forma de calcular volatilidad para evitar que de valores fuera de rango (ej: 13.7 cuando es entre 1 y 0 = %)
+            # Para ello utilizo un cálculo vía Base de Capitar y un filtro para no considerar valores bajos que puedan disparar cálculos
             # 1. Calcular PnL neto del día (Numerador)
             today_total_pnl = Decimal(str(today_realized.get(curr, "0"))) + Decimal(str(today_unrealized.get(curr, "0")))
             yesterday_total_pnl = Decimal(str(yesterday_realized.get(curr, "0"))) + Decimal(str(yesterday_unrealized.get(curr, "0")))
-            
             daily_pnl = today_total_pnl - yesterday_total_pnl
-            
-            # 2. Calcular la Base de Capital (Denominador Dinámico)
-            # Esto resuelve los depósitos iniciales gigantescos y retiros masivos.
+            # 2. Calcular la Base de Capital (Denominador)
+            # Para resolver depósitos iniciales gigantescos y retiros masivos que generan altas volatilidades
             capital_basis = max(prev_val, today_val - daily_pnl)
-            
-            # 3. Filtro Anti-Polvo sobre la base de capital real
+            # 3. Filtro Anti-valores pequeños sobre la base de capital real (evita denominador bajo)
             threshold = Decimal("1") if curr == "USD" else Decimal("1000")
             if capital_basis < threshold:
                 continue
-            
-            # 4. Retorno real de mercado aislado de flujos de caja
+            # 4. Cálculo del Retorno real de mercado
             period_return = daily_pnl / capital_basis
-            
             if curr not in returns_by_currency:
-                returns_by_currency[curr] = []
-                
+                returns_by_currency[curr] = []    
             returns_by_currency[curr].append(float(period_return))
 
+    # Por cada moneda calculo la volatilidad según desviación estándar
     volatility_by_currency = {}
     for curr, returns in returns_by_currency.items():
         if len(returns) < 2:
             volatility_by_currency[curr] = "0"
         else:
             volatility_by_currency[curr] = str(stdev(returns))
-            
     return volatility_by_currency
 
 def calculate_twr(snapshots: list) -> dict:
+    # Aplica proceso similar a volatilidad pero ahora aplicado a la fórumula de TWR
     if len(snapshots) < 2:
         return {}
-    
     multipliers = {}
     
     for i in range(1, len(snapshots)):
@@ -176,21 +167,17 @@ def calculate_twr(snapshots: list) -> dict:
             
             today_total_pnl = Decimal(str(today_realized.get(curr, "0"))) + Decimal(str(today_unrealized.get(curr, "0")))
             yesterday_total_pnl = Decimal(str(yesterday_realized.get(curr, "0"))) + Decimal(str(yesterday_unrealized.get(curr, "0")))
-            
             daily_pnl = today_total_pnl - yesterday_total_pnl
             
-            # Aplicamos la misma Base de Capital al Time-Weighted Return
+            # Se aplica la misma Base de Capital al TWR
             capital_basis = max(prev_val, today_val - daily_pnl)
-            
             threshold = Decimal("1") if curr == "USD" else Decimal("1000")
             if capital_basis < threshold:
                 continue
             
             period_return = daily_pnl / capital_basis
-            
             if curr not in multipliers:
                 multipliers[curr] = Decimal("1")
-                
             multipliers[curr] *= (Decimal("1") + period_return)
             
     return {curr: str(mult - Decimal("1")) for curr, mult in multipliers.items()}
@@ -228,14 +215,11 @@ def calculate_var(snapshots: list) -> dict:
         if len(returns) < 2:
             var_by_currency[curr] = "0"
             continue
-
         # Ordenar rendimientos de peor a mejor
         returns.sort()
-
         # Calcular el índice del percentil
         percentile_index = int((1 - confidence) * len(returns))
         percentile_index = max(0, min(percentile_index, len(returns) - 1))
-
         # El VaR se suele expresar en valor absoluto y positivo.
         # Lo pasamos a string para la columna JSONB
         var_by_currency[curr] = str(abs(returns[percentile_index]))
