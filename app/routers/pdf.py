@@ -23,6 +23,9 @@ from scripts.processing_pdf import (
     extract_stocks_etf_1,
     extract_stocks_etf_2,
 )
+from app.repositories.portfolio_repo import reconstruct_user_portfolio
+from app.routers.portfolio import post_daily_portfolio_metrics, post_monthly_portfolio_metrics
+from app.routers.accounts import post_daily_account_metrics, post_monthly_account_metrics
 
 from scripts.warnings_module import warnings
 from app.repositories.portfolio_repo import reconstruct_user_portfolio
@@ -93,7 +96,15 @@ async def upload_pdf_stocks_etf_1(
         monthly_metrics = await post_monthly_portfolio_metrics(user,db)
         print(f"12 - Monthly metrics OK: {monthly_metrics}")
 
-                # Generate warnings based on updated portfolio
+        # Generate warnings based on updated portfolio
+
+        print("12.1 - Creando métricas de cuenta (daily + monthly)")
+
+        await post_daily_account_metrics(user, db)
+        await post_monthly_account_metrics(user, db)
+
+        print("12.2 - Account metrics OK")
+
         print("13 - Generando warnings")
         warnings_found = await warnings(db, user.clerk_id, send_mail=True)
 
@@ -177,6 +188,10 @@ async def upload_pdf_mutual_funds(
         print("11 - Creando métricas mensuales")
         monthly_metrics = await post_monthly_portfolio_metrics(user, db)
         print(f"12 - Monthly metrics OK: {monthly_metrics}")
+        print("12.1 - Creando métricas de cuenta (daily + monthly)")
+        await post_daily_account_metrics(user, db)
+        await post_monthly_account_metrics(user, db)
+        print("12.2 - Account metrics OK")
         print("13 - Generando warnings")
         warnings_found = await warnings(db, user.clerk_id, send_mail=True)
         print("14 - Todo completado exitosamente")  

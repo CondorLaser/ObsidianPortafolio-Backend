@@ -57,6 +57,28 @@ async def get_account_metrics(
     return AccountMetricsRead(daily=latest_daily, monthly=latest_monthly)
 
 
+@router.post("/metrics/daily")
+async def post_daily_account_metrics(
+    user: Profile = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    # Recalcula (idempotente) las métricas diarias de TODAS las cuentas del user.
+    # Pensado para llamarse tras subir un PDF (ver routers/pdf.py), como espejo
+    # de post_daily_portfolio_metrics.
+    n = await account_metrics_repo.compute_and_store_daily_for_user(db, user.clerk_id)
+    return {"accounts_updated": n}
+
+
+@router.post("/metrics/monthly")
+async def post_monthly_account_metrics(
+    user: Profile = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    # Recalcula (idempotente) las métricas mensuales de TODAS las cuentas del user.
+    n = await account_metrics_repo.compute_and_store_monthly_for_user(db, user.clerk_id)
+    return {"accounts_updated": n}
+
+
 @router.get("/positions/{account_id}", response_model=list[PositionRead])
 async def get_account_positions(
     account_id: uuid.UUID,
