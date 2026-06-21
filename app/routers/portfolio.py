@@ -62,7 +62,7 @@ async def get_portfolio_summary(
 ):
     return await portfolio_repo.get_portfolio_summary_data(db, user.clerk_id)
 
-@router.get("/trend", response_model=list[TrendPoint])
+@router.get("/trend", response_model=list)
 async def get_portfolio_trend(
     user: Profile = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
