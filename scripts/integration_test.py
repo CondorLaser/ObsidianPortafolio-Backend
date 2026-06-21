@@ -706,9 +706,10 @@ async def test_portfolio_reconstruction(r: Report):
 
     # Cómputo + persist
     async with SessionLocal() as db:
+        # replace_positions espera el objeto Profile (lo cambió #44), no el clerk_id.
+        user_obj = await user_repo.get_or_create_by_clerk_id(db, u_id, "portfolio@inttest.io")
         snaps, pos = await portfolio_repo.compute_user_series(db, u_id)
         n_snaps = await portfolio_repo.replace_snapshots(db, u_id, snaps)
-        user_obj = (await db.execute(select(Profile).where(Profile.clerk_id == u_id))).scalar_one()
         n_pos = await portfolio_repo.replace_positions(db, user_obj, pos)
 
     expected_days = 11  # D-10..D=today inclusive
@@ -880,9 +881,10 @@ async def test_e2e_pdf_to_dashboard(r: Report):
 
     # ── 2. Disparar rebuild (lo que hace POST /portfolio/rebuild internamente) ──
     async with SessionLocal() as db:
+        # replace_positions espera el objeto Profile (lo cambió #44), no el clerk_id.
+        user_obj = await user_repo.get_or_create_by_clerk_id(db, u_id, "e2e@inttest.io")
         snaps, pos = await portfolio_repo.compute_user_series(db, u_id)
         n_snaps = await portfolio_repo.replace_snapshots(db, u_id, snaps)
-        user_obj = (await db.execute(select(Profile).where(Profile.clerk_id == u_id))).scalar_one()
         n_pos = await portfolio_repo.replace_positions(db, user_obj, pos)
 
     # Esperamos ~6 días (D-5..today inclusive)
@@ -914,10 +916,10 @@ async def test_e2e_pdf_to_dashboard(r: Report):
 
     # ── 4. Re-rebuild idempotente (mismo input → mismo output) ──────────
     async with SessionLocal() as db:
+        user_obj = await user_repo.get_or_create_by_clerk_id(db, u_id, "e2e@inttest.io")
         snaps2, pos2 = await portfolio_repo.compute_user_series(db, u_id)
         n_snaps2 = await portfolio_repo.replace_snapshots(db, u_id, snaps2)
-        user_obj2 = (await db.execute(select(Profile).where(Profile.clerk_id == u_id))).scalar_one()
-        n_pos2 = await portfolio_repo.replace_positions(db, user_obj2, pos2)
+        n_pos2 = await portfolio_repo.replace_positions(db, user_obj, pos2)
 
     if n_snaps2 == n_snaps and n_pos2 == n_pos:
         r.ok(f"paso 4 — rebuild idempotente: {n_snaps2} snapshots, {n_pos2} position")
