@@ -142,8 +142,29 @@ def main():
     add_section_intro(doc, [
         "Necesita: vista global del patrimonio del usuario (todas sus cuentas, "
         "todas las transactions, todos los dividends, posiciones consolidadas).",
+        "Contrato derivado del mock del frontend (portfolio-content.js + "
+        "portfolio_snapshot.json): un único endpoint agregado /portfolio/dashboard "
+        "devuelve summary + trend + account_distribution + positions en un solo response. "
+        "Backend entrega data CRUDA (Decimal + ISO date); el frontend formatea con Intl. "
+        "Sin FX: si el user tiene 1 sola currency los escalares total_value/invested/pnl "
+        "son la suma honesta; si tiene múltiples, esos escalares vienen NULL y "
+        "el frontend itera total_value_by_currency (1 card por moneda).",
     ])
     doc.add_paragraph("Endpoints:")
+    add_endpoint(doc, "GET", "/portfolio/dashboard", "🔒 Clerk",
+                 returns="PortfolioDashboard: {summary, trend, account_distribution, positions}",
+                 note="Query params opcionales: ?trend_from=YYYY-MM-DD&trend_to=YYYY-MM-DD para acotar la serie del trend. "
+                      "summary: {total_value/total_invested/unrealized_pnl (null si multi-currency), "
+                      "total_value_by_currency/total_invested_by_currency/unrealized_pnl_by_currency (dicts {USD: …, CLP: …}), "
+                      "total_return_pct, active_positions, linked_accounts, last_snapshot_date}. "
+                      "trend: [{date, value}]. account_distribution: [{account_id, name, amount, percentage, currency}] "
+                      "(percentage normalizado por su currency). "
+                      "positions: PositionDerived computado on-the-fly desde transactions + asset_prices.")
+    add_endpoint(doc, "POST", "/portfolio/rebuild", "🔒 Clerk",
+                 returns="{snapshots_persisted: int, positions_persisted: int}",
+                 note="Recomputa snapshots + positions del user. Pensado para llamar desde el "
+                      "frontend después de subir un PDF (cuando se crearon transactions nuevas y "
+                      "el cron diario todavía no corrió). Sync, ~3-7s. Idempotente.")
     add_endpoint(doc, "GET", "/accounts", "🔒 Clerk",
                  returns="Lista de cuentas del usuario (más reciente primero)")
     add_endpoint(doc, "GET", "/positions", "🔒 Clerk",
@@ -232,19 +253,6 @@ def main():
                  returns="{ clerk_id, email, created_at, risk_profile }")
     add_endpoint(doc, "PUT", "/profile", "🔒 Clerk",
                  returns="Update profile (hoy permite editar risk_profile). Body: { risk_profile }")
-    add_endpoint(doc, "PATCH", "/profile/risk-profile", "🔒 Clerk",
-                 returns="Canónico: actualiza solo el risk_profile. Body: { risk_profile }")
-    doc.add_paragraph()
-
-    doc.add_paragraph("Endpoints — User (aliases livianos):")
-    add_endpoint(doc, "GET", "/user/risk_profile", "🔒 Clerk",
-                 returns="{ risk_profile: 'moderate' | 'agressive' | 'conservative' | null }")
-    add_endpoint(doc, "PUT", "/user/risk_profile", "🔒 Clerk",
-                 returns="Alias de PATCH /profile/risk-profile. Body: { risk_profile }")
-    add_endpoint(doc, "GET", "/user/accounts_names", "🔒 Clerk",
-                 returns="[ { id, name }, ... ] — solo id+nombre de cada cuenta")
-    add_endpoint(doc, "PUT", "/user/accounts_names", "🔒 Clerk + ownership",
-                 returns="Rename batch. Body: [ { id, name }, ... ]")
     doc.add_paragraph()
 
     doc.add_paragraph("Endpoints — Preferences (umbrales de alertas):")
@@ -278,7 +286,7 @@ def main():
     ])
     doc.add_paragraph("Endpoints:")
     add_endpoint(doc, "POST", "/risk_profile", "🔒 Clerk",
-                 returns="{ risk_profile } — alias de PATCH /profile/risk-profile para uso en onboarding")
+                 returns="{ risk_profile } — setea risk_profile inicial del user en el onboarding")
     doc.add_paragraph()
 
     # ────────────────────────────────────────────────────────────

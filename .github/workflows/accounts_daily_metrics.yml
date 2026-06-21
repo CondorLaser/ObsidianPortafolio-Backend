@@ -1,0 +1,27 @@
+name: Account Daily Metrics
+
+on:
+  push:
+    branches:
+      - develop #solo para testeo
+  schedule:
+    - cron: "0 7 * * *"   # diario 07:00 UTC, después de la reconstrucción (06:00)
+  workflow_dispatch:
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Instalar dependencias
+        run: pip install psycopg2-binary
+
+      - name: Correr cómputo de métricas diarias de cuenta
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: python scripts_ghactions/accounts_daily_metrics.py --apply

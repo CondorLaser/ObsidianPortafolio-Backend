@@ -14,17 +14,17 @@ async def list_all(
     kind: AssetKind | None = None,
     currency: str | None = None,
     search: str | None = None,
-    limit: int = 100,
-    offset: int = 0,
+    limit: int = 10,
+    skip: int = 0,
 ) -> list[Asset]:
     """1:1 con SELECT * FROM assets de Eduardo: symbol = exact (no ilike)."""
-    stmt = select(Asset).order_by(Asset.symbol).limit(limit).offset(offset)
+    stmt = select(Asset).order_by(Asset.symbol).limit(limit).offset(skip)
     if symbol_exact:
-        stmt = stmt.where(Asset.symbol == symbol_exact)
+        stmt = stmt.where(Asset.symbol == symbol_exact).limit(limit).offset(skip)
     if kind is not None:
-        stmt = stmt.where(Asset.kind == kind)
+        stmt = stmt.where(Asset.kind == kind).limit(limit).offset(skip)
     if currency:
-        stmt = stmt.where(Asset.currency == currency)
+        stmt = stmt.where(Asset.currency == currency).limit(limit).offset(skip)
     if search:
         like = f"%{search}%"
         stmt = stmt.where(or_(Asset.symbol.ilike(like), Asset.name.ilike(like)))

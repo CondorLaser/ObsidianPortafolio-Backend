@@ -1,5 +1,10 @@
-from sqlalchemy import text
+from sqlalchemy import text, select, func
+import uuid
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
+
+from app.models.position import Position
+from app.models.account import Account
 
 
 # Posiciones derivadas en runtime desde transactions + asset_prices. Existe
@@ -31,31 +36,114 @@ POSITIONS_SQL = text(
         SELECT DISTINCT ON (asset_id) asset_id, close
         FROM asset_prices
         ORDER BY asset_id, date DESC
+    ),
+    positions_data AS (
+        SELECT
+            agg.account_id,
+            agg.asset_id,
+            ast.symbol,
+            ast.name,
+            ast.kind,      
+            ast.currency,  
+            ast.created_at,
+            agg.quantity,
+            agg.avg_cost,
+            lp.close AS last_price,
+            CASE WHEN lp.close IS NOT NULL THEN agg.quantity * lp.close ELSE NULL END
+                AS market_value,
+            CASE
+                WHEN lp.close IS NOT NULL AND agg.avg_cost IS NOT NULL
+                THEN agg.quantity * (lp.close - agg.avg_cost)
+                ELSE NULL
+            END AS unrealized_pnl
+        FROM agg
+        JOIN assets ast ON ast.id = agg.asset_id
+        LEFT JOIN last_price lp ON lp.asset_id = agg.asset_id
+        WHERE agg.quantity > 0
     )
-    SELECT
-        agg.account_id,
-        agg.asset_id,
-        ast.symbol,
-        ast.name,
-        agg.quantity,
-        agg.avg_cost,
-        lp.close AS last_price,
-        CASE WHEN lp.close IS NOT NULL THEN agg.quantity * lp.close ELSE NULL END
-            AS market_value,
-        CASE
-            WHEN lp.close IS NOT NULL AND agg.avg_cost IS NOT NULL
-            THEN agg.quantity * (lp.close - agg.avg_cost)
-            ELSE NULL
-        END AS unrealized_pnl
-    FROM agg
-    JOIN assets ast ON ast.id = agg.asset_id
-    LEFT JOIN last_price lp ON lp.asset_id = agg.asset_id
-    WHERE agg.quantity > 0
-    ORDER BY ast.symbol;
+    SELECT * FROM positions_data
+    ORDER BY symbol
+    OFFSET :skip
+    LIMIT :limit;
     """
 )
 
+async def list_for_user_portfolio(
+    session: AsyncSession, clerk_id: str,
+    skip: int = 0,
+    limit: int = 10,
+) -> list[dict]:
+    result = await session.execute(
+        POSITIONS_SQL, 
+        {"clerk_id": clerk_id, "skip": skip, "limit": limit}
+    )
+    
+    positions = []
+    for row in result.mappings().all():
+        d = dict(row)
+        d["asset"] = {
+            "id": d["asset_id"],
+            "symbol": d["symbol"],
+            "name": d["name"],
+            "kind": d["kind"],
+            "currency": d["currency"],
+            "created_at": d["created_at"]
+        }
+        positions.append(d)
+        
+    return positions
 
-async def list_for_user(session: AsyncSession, clerk_id: str) -> list[dict]:
-    result = await session.execute(POSITIONS_SQL, {"clerk_id": clerk_id})
-    return [dict(row) for row in result.mappings().all()]
+async def list_for_user(
+    session: AsyncSession, 
+    clerk_id: str,
+    skip: int = 0,
+    limit: int = 10,
+) -> list[Position]:    
+    stmt = (
+        select(Position)
+        .join(Account, Account.id == Position.account_id)
+        .where(Account.user_id == clerk_id)
+        .options(selectinload(Position.asset))
+        .order_by(Position.updated_at.desc())
+        .offset(skip)
+        .limit(limit)
+    )
+    
+    result = await session.execute(stmt)
+    return list(result.scalars().all())
+
+
+async def get_for_user_and_asset(
+    session: AsyncSession,
+    clerk_id: str,
+    asset_id: str,
+) -> Position | None:
+    """Posición materializada de un usuario para un asset específico.
+
+    El front (página de detalle de activo) la consume como UN objeto, no una
+    lista. Si el asset está en varias cuentas se devuelve la más recientemente
+    actualizada — en vez de crashear (scalar_one_or_none) o romper el shape del
+    front (lista). Devuelve None si el usuario no tiene ese asset."""
+    stmt = (
+        select(Position)
+        .join(Account, Account.id == Position.account_id)
+        .where(Account.user_id == clerk_id)
+        .where(Position.asset_id == asset_id)
+        .options(selectinload(Position.asset))
+        .order_by(Position.updated_at.desc())
+    )
+    result = await session.execute(stmt)
+    return result.scalars().first()
+
+async def count_for_user(
+    session: AsyncSession, 
+    clerk_id: str,
+) -> int:
+    stmt = (
+        select(func.count(Position.id))
+        .select_from(Position)
+        .join(Account, Account.id == Position.account_id)
+        .where(Account.user_id == clerk_id)
+    )
+    result = await session.execute(stmt)
+    return result.scalar() or 0

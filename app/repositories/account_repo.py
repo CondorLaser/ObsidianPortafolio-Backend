@@ -1,22 +1,79 @@
 import uuid
 
-from sqlalchemy import select
+from sqlalchemy import delete, select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.models.account import Account
+from app.models.position import Position
+from app.models.transaction import Transaction
+from app.models.dividend import Dividend
 from app.schemas.account import AccountCreate
 
 
-async def list_for_user(session: AsyncSession, clerk_id: str) -> list[Account]:
-    """ORDER BY created_at DESC — matchea contrato Eduardo (más reciente primero)."""
+async def list_for_user(
+    session: AsyncSession, clerk_id: str,
+    skip: int = 0,
+    limit: int = 10,
+) -> list[Account]:
     result = await session.execute(
         select(Account)
         .where(Account.user_id == clerk_id)
         .order_by(Account.created_at.desc())
+        .offset(skip)
+        .limit(limit)
     )
     return list(result.scalars().all())
 
+async def list_for_user_with_counters(
+    session: AsyncSession, clerk_id: str,
+    skip: int = 0,
+    limit: int = 10,
+) -> list[Account]:
+    from app.models.asset import Asset
+
+    # Subqueries para contar positions por tipo de asset
+    stock_positions = select(func.count(Position.id)).where(
+        Position.account_id == Account.id,
+        Asset.id == Position.asset_id,
+        Asset.kind == 'stock'
+    ).scalar_subquery()
+    
+    fund_positions = select(func.count(Position.id)).where(
+        Position.account_id == Account.id,
+        Asset.id == Position.asset_id,
+        Asset.kind == 'fund'
+    ).scalar_subquery()
+    
+    etf_positions = select(func.count(Position.id)).where(
+        Position.account_id == Account.id,
+        Asset.id == Position.asset_id,
+        Asset.kind == 'etf'
+    ).scalar_subquery()
+    
+    result = await session.execute(
+        select(
+            Account,
+            stock_positions.label('stock_positions'),
+            fund_positions.label('fund_positions'),
+            etf_positions.label('etf_positions'),
+        )
+        .where(Account.user_id == clerk_id)
+        .order_by(Account.created_at.desc())
+        .offset(skip)
+        .limit(limit)
+    )
+    
+    accounts_with_counts = []
+    for row in result.all():
+        accounts_with_counts.append({
+            'account': row[0],
+            'stock_positions': row[1] or 0,
+            'fund_positions': row[2] or 0,
+            'etf_positions': row[3] or 0,
+        })
+    
+    return accounts_with_counts
 
 async def create(
     session: AsyncSession,
@@ -28,6 +85,21 @@ async def create(
     await session.commit()
     await session.refresh(account)
     return account
+
+
+async def delete_for_user(
+    session: AsyncSession,
+    clerk_id: str,
+    account_id: uuid.UUID,
+) -> bool:
+    """Delete an account if it belongs to the given user."""
+    result = await session.execute(
+        delete(Account).where(Account.id == account_id, Account.user_id == clerk_id)
+    )
+    if result.rowcount == 0:
+        return False
+    await session.commit()
+    return True
 
 
 async def get_for_user(
@@ -76,3 +148,84 @@ async def rename(
     await session.commit()
     await session.refresh(account)
     return account
+
+
+async def get_positions_by_account(
+    session: AsyncSession,
+    clerk_id: str,
+    account_id: uuid.UUID,
+    skip: int = 0,
+    limit: int = 10,
+) -> list[Position] | None:
+    # Verificar que la cuenta exista y sea del usuario
+    account_exists = await session.execute(
+        select(Account.id).where(
+            Account.id == account_id, Account.user_id == clerk_id
+        )
+    )
+    if not account_exists.scalar_one_or_none():
+        return None
+    # Obtener Positions paginadas + ordenadas
+    result = await session.execute(
+        select(Position)
+        .join(Account, Account.id == Position.account_id)
+        .where(Position.account_id == account_id)
+        .options(selectinload(Position.asset))
+        .order_by(Position.updated_at.desc())
+        .offset(skip)
+        .limit(limit)
+    )
+    return list(result.scalars().all())
+
+
+async def get_transactions_by_account(
+    session: AsyncSession,
+    clerk_id: str,
+    account_id: uuid.UUID,
+    skip: int = 0,
+    limit: int = 10,
+) -> list[Position] | None:
+    # Verificar que la cuenta exista y sea del usuario
+    account_exists = await session.execute(
+        select(Account.id).where(
+            Account.id == account_id, Account.user_id == clerk_id
+        )
+    )
+    if not account_exists.scalar_one_or_none():
+        return None
+    # Obtener Transactions paginadas + ordenadas
+    result = await session.execute(
+        select(Transaction)
+        .where(Transaction.account_id == account_id)
+        .options(selectinload(Transaction.asset))
+        .order_by(Transaction.executed_at.desc())
+        .offset(skip)
+        .limit(limit)
+    )
+    return list(result.scalars().all())
+
+async def get_dividends_by_account(
+    session: AsyncSession,
+    clerk_id: str,
+    account_id: uuid.UUID,
+    skip: int = 0,
+    limit: int = 10,
+) -> list[Position] | None:
+    # Verificar que la cuenta exista y sea del usuario
+    account_exists = await session.execute(
+        select(Account.id).where(
+            Account.id == account_id, Account.user_id == clerk_id
+        )
+    )
+    if not account_exists.scalar_one_or_none():
+        return None
+    # Obtener Dividends paginadas + ordenadas
+    result = await session.execute(
+        select(Dividend)
+        .where(Dividend.account_id == account_id)
+        .options(selectinload(Dividend.asset))
+        .order_by(Dividend.date.desc())
+        .offset(skip)
+        .limit(limit)
+    )
+    return list(result.scalars().all())

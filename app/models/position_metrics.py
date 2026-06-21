@@ -25,9 +25,9 @@ class PositionDailyMetric(Base):
         nullable=False,
     )
     date: Mapped[date_type | None] = mapped_column(Date, nullable=True)
-    pnl: Mapped[Decimal | None] = mapped_column(Numeric(20, 8), nullable=True)
+    #pnl: Mapped[Decimal | None] = mapped_column(Numeric(20, 8), nullable=True)
     unrealized_pnl: Mapped[Decimal | None] = mapped_column(Numeric(20, 8), nullable=True)
     total_pnl: Mapped[Decimal | None] = mapped_column(Numeric(20, 8), nullable=True)
-    personal_return: Mapped[Decimal | None] = mapped_column(Numeric(10, 4), nullable=True)
+    #personal_return: Mapped[Decimal | None] = mapped_column(Numeric(10, 4), nullable=True)
 
     position: Mapped["Position"] = relationship(back_populates="daily_metrics")

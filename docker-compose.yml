@@ -32,8 +32,8 @@ services:
       # Esto pisa DATABASE_URL_DEV del .env (que apunta a localhost:5433).
       DATABASE_URL: postgresql+asyncpg://orion:orion@db:5432/orion_dev
       DATABASE_TESTING: postgresql://orion:orion@db:5432/orion_dev
-      CLERK_ISSUER: ${CLERK_ISSUER:-}
-      CLERK_WEBHOOK_SECRET: ${CLERK_WEBHOOK_SECRET:-}
+      CLERK_ISSUER: https://worthy-jackal-80.clerk.accounts.dev
+      CLERK_WEBHOOK_SECRET: whsec_7kjyzJtE7sp2MgHVqiJ5hVYPk/EYjybO
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:3000}
     env_file:
       - .env.local       # opcional; si no existe, docker compose lo ignora

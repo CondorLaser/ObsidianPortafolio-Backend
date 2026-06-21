@@ -8,6 +8,7 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base
+from sqlalchemy import UniqueConstraint
 
 if TYPE_CHECKING:
     from app.models.asset import Asset
@@ -17,6 +18,7 @@ class AssetPrice(Base):
     __tablename__ = "asset_prices"
     __table_args__ = (
         Index("ix_asset_price_asset_date_desc", "asset_id", "date"),
+        UniqueConstraint("asset_id", "date", name="asset_prices_asset_id_date_key"),
     )
 
     asset_id: Mapped[uuid.UUID] = mapped_column(

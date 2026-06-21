@@ -1,0 +1,21 @@
+                                                             Table "public.assets"
+   Column   |           Type           | Collation | Nullable |         Default          | Storage  | Compression | Stats target | Description 
+------------+--------------------------+-----------+----------+--------------------------+----------+-------------+--------------+-------------
+ id         | uuid                     |           | not null |                          | plain    |             |              | 
+ symbol     | character varying        |           | not null |                          | extended |             |              | 
+ name       | character varying        |           | not null |                          | extended |             |              | 
+ kind       | asset_kind               |           | not null |                          | plain    |             |              | 
+ currency   | character varying(3)     |           | not null | 'USD'::character varying | extended |             |              | 
+ created_at | timestamp with time zone |           | not null | now()                    | plain    |             |              | 
+Indexes:
+    "assets_pkey" PRIMARY KEY, btree (id)
+    "ix_assets_symbol" btree (symbol)
+Referenced by:
+    TABLE "asset_daily_metrics" CONSTRAINT "asset_daily_metrics_asset_id_fkey" FOREIGN KEY (asset_id) REFERENCES assets(id) ON DELETE CASCADE
+    TABLE "asset_monthly_metrics" CONSTRAINT "asset_monthly_metrics_asset_id_fkey" FOREIGN KEY (asset_id) REFERENCES assets(id) ON DELETE CASCADE
+    TABLE "asset_prices" CONSTRAINT "asset_prices_asset_id_fkey" FOREIGN KEY (asset_id) REFERENCES assets(id) ON DELETE CASCADE
+    TABLE "dividends" CONSTRAINT "dividends_asset_id_fkey" FOREIGN KEY (asset_id) REFERENCES assets(id) ON DELETE RESTRICT
+    TABLE "positions" CONSTRAINT "positions_asset_id_fkey" FOREIGN KEY (asset_id) REFERENCES assets(id) ON DELETE CASCADE
+    TABLE "transactions" CONSTRAINT "transactions_asset_id_fkey" FOREIGN KEY (asset_id) REFERENCES assets(id) ON DELETE RESTRICT
+Access method: heap
+

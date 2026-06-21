@@ -4,6 +4,7 @@ from decimal import Decimal
 
 from pydantic import BaseModel, ConfigDict
 
+from app.schemas.asset import AssetRead 
 
 class DividendRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -15,3 +16,4 @@ class DividendRead(BaseModel):
     gross_amount: Decimal | None
     tax_amount: Decimal | None
     net_amount: Decimal | None
+    asset: AssetRead

@@ -23,7 +23,7 @@ import json
 import os
 import sys
 import time
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Any
 
@@ -90,6 +90,8 @@ EXPECTED_ROUTES = {
     ("GET", "/transactions"),
     ("POST", "/transactions"),
     ("POST", "/webhooks/clerk"),
+    ("GET", "/portfolio/dashboard"),
+    ("POST", "/portfolio/rebuild"),
 }
 
 
@@ -191,6 +193,8 @@ def test_protected_endpoints_reject_401(r: Report, client: httpx.Client):
         ("POST", "/pdf/extract_mutual_funds"),
         ("POST", "/pdf/extract_stocks_etf_2"),
         ("GET", "/protected"),
+        ("GET", "/portfolio/dashboard"),
+        ("POST", "/portfolio/rebuild"),
     ]
     ok = 0
     for method, path in protected:
@@ -558,10 +562,14 @@ async def test_ingestion_pdf_mutual_funds(r: Report):
         )
 
     # Filas en el formato extract_mutual_funds:
-    # [fecha, nombre_inversion, nombre_fondo, serie_fondo, aportes, rescate, aportes_cpl, rescate_cpl]
+    # [fecha, nombre_inversion, nombre_fondo, serie_fondo,
+    #  aporte_cuotas, rescate_cuotas, valor_cuota, aporte_pesos, rescate_pesos]
+    # quantity = cuotas, price = valor_cuota  (cuotas * valor_cuota = monto pesos)
     rows = [
-        ["15/01/2026", "Risky Norris", fund_name, fund_series, 100.0, 0.0, 1000.0, 0.0],
-        ["20/02/2026", "Risky Norris", fund_name, fund_series, 0.0, 50.0, 0.0, 1100.0],
+        # aporte: 100 cuotas a $10 = $1.000
+        ["15/01/2026", "Risky Norris", fund_name, fund_series, 100.0, 0.0, 10.0, 1000.0, 0.0],
+        # rescate: 50 cuotas a $22 = $1.100
+        ["20/02/2026", "Risky Norris", fund_name, fund_series, 0.0, 50.0, 22.0, 0.0, 1100.0],
     ]
     async with SessionLocal() as db:
         result = await pdf_repo.save_mutual_funds(db, u_id, rows, acc.id)
@@ -570,6 +578,14 @@ async def test_ingestion_pdf_mutual_funds(r: Report):
         r.ok("PDF mutual_funds: 2 tx (aporte + rescate) persistidas")
     else:
         r.fail("pdf mutual_funds", f"result={result}")
+
+    # Idempotencia: re-subir el mismo PDF NO debe duplicar
+    async with SessionLocal() as db:
+        again = await pdf_repo.save_mutual_funds(db, u_id, rows, acc.id)
+    if again["compras_ventas_guardadas"] == 0 and again.get("duplicados_omitidos") == 2:
+        r.ok("PDF mutual_funds idempotente: 2da subida no duplica (0 nuevas, 2 omitidas)")
+    else:
+        r.fail("pdf mutual_funds idempotente", f"again={again}")
 
 
 async def test_ingestion_twelvedata(r: Report):
@@ -597,6 +613,333 @@ async def test_ingestion_twelvedata(r: Report):
             r.fail("TwelveData fetch", f"response: {data}")
     except Exception as e:
         r.fail("TwelveData fetch", str(e))
+
+
+# ────────────────────────────────────────────────────────────────────────────
+# Fase 6 — Portfolio reconstruction (time series → snapshots + positions)
+# ────────────────────────────────────────────────────────────────────────────
+async def test_portfolio_reconstruction(r: Report):
+    """Test determinista de portfolio_repo: txs sintéticas → series → snapshots.
+
+    Setup:
+      D-10: buy 10 @ 100 (invested 1000)
+      D-5:  buy  5 @ 120 (invested 1600; avg_cost = 1600/15 = 106.66...)
+      D-2:  sell 3 @ 130 (realized 3*(130-106.66) = 70; qty=12, invested≈1280)
+
+    Precios diarios D-10..D-1 con D-1=140; D=hoy sin precio → forward-fill 140.
+
+    Expectativas:
+      - len(snapshots) == 11  (D-10 .. D=today inclusive)
+      - snapshots[-1].total_value ≈ 12 * 140 = 1680
+      - snapshots[-1].unrealized_pnl ≈ 1680 - 1280 = 400
+      - positions latest: qty=12, avg_cost≈106.66, realized_pnl≈70
+    """
+    from app.repositories import portfolio_repo
+    from app.models.portfolio_snapshot import PortfolioSnapshot
+    from app.models.position import Position
+
+    section("Fase 6.1 — Reconstrucción de portafolio")
+
+    u_id = f"{TEST_USER_PREFIX}portfolio_max"
+    today = date.today()
+    d10 = today - timedelta(days=10)
+    d5 = today - timedelta(days=5)
+    d2 = today - timedelta(days=2)
+
+    async with SessionLocal() as db:
+        await user_repo.get_or_create_by_clerk_id(db, u_id, "portfolio@inttest.io")
+        acc = await account_repo.create(
+            db, u_id, AccountCreate(name="_inttest_portfolio_acc", currency="USD")
+        )
+
+        ast = await asset_repo.create(
+            db,
+            AssetCreate(
+                symbol=f"_INTTEST_PORTRECON_{int(time.time())}",
+                name="_INTTEST_PORTRECON asset",
+                kind=AssetKind.stock,
+                currency="USD",
+            ),
+        )
+
+        # Precios D-10..D-1 (10 días; sin precio para hoy → forward-fill desde D-1)
+        # closes: 100, 104, 108, 112, 116, 120, 124, 128, 132, 136 (D-1)
+        for i, days_ago in enumerate(range(10, 0, -1)):
+            d = today - timedelta(days=days_ago)
+            close = Decimal("100") + Decimal(i) * Decimal("4")
+            await asset_price_repo.upsert(
+                db,
+                ast.id,
+                AssetPriceCreate(
+                    date=d, close=close, currency="USD", source="_inttest",
+                ),
+            )
+
+        from app.repositories import transaction_repo
+        await transaction_repo.create_for_user(
+            db, u_id,
+            TransactionCreate(
+                account_id=acc.id, asset_id=ast.id,
+                kind=TransactionKind.buy,
+                quantity=Decimal("10"), price=Decimal("100"), fee=Decimal("0"),
+                executed_at=datetime.combine(d10, datetime.min.time(), tzinfo=timezone.utc),
+            ),
+        )
+        await transaction_repo.create_for_user(
+            db, u_id,
+            TransactionCreate(
+                account_id=acc.id, asset_id=ast.id,
+                kind=TransactionKind.buy,
+                quantity=Decimal("5"), price=Decimal("120"), fee=Decimal("0"),
+                executed_at=datetime.combine(d5, datetime.min.time(), tzinfo=timezone.utc),
+            ),
+        )
+        await transaction_repo.create_for_user(
+            db, u_id,
+            TransactionCreate(
+                account_id=acc.id, asset_id=ast.id,
+                kind=TransactionKind.sell,
+                quantity=Decimal("3"), price=Decimal("130"), fee=Decimal("0"),
+                executed_at=datetime.combine(d2, datetime.min.time(), tzinfo=timezone.utc),
+            ),
+        )
+
+    # Cómputo + persist
+    async with SessionLocal() as db:
+        snaps, pos = await portfolio_repo.compute_user_series(db, u_id)
+        n_snaps = await portfolio_repo.replace_snapshots(db, u_id, snaps)
+        user_obj = (await db.execute(select(Profile).where(Profile.clerk_id == u_id))).scalar_one()
+        n_pos = await portfolio_repo.replace_positions(db, user_obj, pos)
+
+    expected_days = 11  # D-10..D=today inclusive
+    if n_snaps == expected_days:
+        r.ok(f"snapshots: {n_snaps} días (D-10..today)")
+    else:
+        r.fail("snapshots count", f"got {n_snaps}, expected {expected_days}")
+
+    if n_pos == 1:
+        r.ok(f"positions persisted: {n_pos}")
+    else:
+        r.fail("positions count returned", f"got {n_pos}, expected 1")
+
+    # Validar último snapshot
+    async with SessionLocal() as db:
+        q = await db.execute(
+            select(PortfolioSnapshot)
+            .where(PortfolioSnapshot.user_id == u_id)
+            .order_by(PortfolioSnapshot.date.desc())
+            .limit(1)
+        )
+        latest = q.scalar_one_or_none()
+
+    if latest is None:
+        r.fail("latest snapshot", "no se persistió ninguno")
+    else:
+        # 12 qty * 136 (precio D-1 forward-fill a hoy) = 1632
+        expected_value = Decimal("1632")
+        if abs((latest.total_value or Decimal("0")) - expected_value) < Decimal("0.01"):
+            r.ok(f"snapshot.total_value = {latest.total_value} (esperado 1632)")
+        else:
+            r.fail("total_value", f"got {latest.total_value}, expected {expected_value}")
+
+        # unrealized_pnl = 1632 - invested_actual. invested después de sell:
+        # 1600 - avg_cost*3 = 1600 - (1600/15)*3 = 1600 - 320 = 1280
+        # unrealized = 1632 - 1280 = 352
+        expected_unrealized = Decimal("352")
+        if abs((latest.unrealized_pnl or Decimal("0")) - expected_unrealized) < Decimal("0.01"):
+            r.ok(f"snapshot.unrealized_pnl = {latest.unrealized_pnl} (esperado 352)")
+        else:
+            r.fail(
+                "unrealized_pnl",
+                f"got {latest.unrealized_pnl}, expected {expected_unrealized}",
+            )
+
+    # Validar positions latest
+    async with SessionLocal() as db:
+        pq = await db.execute(
+            select(Position).where(Position.account_id == acc.id)
+        )
+        positions = pq.scalars().all()
+
+    if len(positions) == 1:
+        p = positions[0]
+        # qty = 12, avg_cost = 1600/15 ≈ 106.6667
+        if p.quantity == Decimal("12") and abs(p.avg_cost - Decimal("106.6666666666666667")) < Decimal("0.01"):
+            r.ok(f"position latest: qty={p.quantity}, avg_cost={p.avg_cost:.4f}")
+        else:
+            r.fail("position state", f"qty={p.quantity}, avg_cost={p.avg_cost}")
+
+        # realized_pnl ≈ 3*(130 - 106.66) = 70
+        if abs((p.realized_pnl or Decimal("0")) - Decimal("70")) < Decimal("0.1"):
+            r.ok(f"realized_pnl = {p.realized_pnl:.4f} (esperado 70)")
+        else:
+            r.fail("realized_pnl", f"got {p.realized_pnl}, expected 70")
+    else:
+        r.fail("positions count", f"expected 1, got {len(positions)}")
+
+    # Validar shape del dashboard
+    section("Fase 6.2 — Dashboard data (read)")
+    async with SessionLocal() as db:
+        dash = await portfolio_repo.get_dashboard_data(db, u_id)
+
+    if "summary" in dash and "trend" in dash and "account_distribution" in dash and "positions" in dash:
+        r.ok("dashboard shape: summary + trend + account_distribution + positions")
+    else:
+        r.fail("dashboard shape", f"keys: {list(dash.keys())}")
+
+    # NOTA: user_repo.get_or_create_by_clerk_id auto-crea "Mi cuenta principal"
+    # para users nuevos (JIT default account). Por eso linked_accounts=2
+    # (la default + _inttest_portfolio_acc creada por este test). active_positions
+    # es 1 porque solo agregamos tx a nuestra cuenta de test.
+    if dash["summary"]["active_positions"] == 1 and dash["summary"]["linked_accounts"] == 2:
+        r.ok("dashboard.summary contadores OK (positions=1 + default+test accounts=2)")
+    else:
+        r.fail(
+            "dashboard.summary contadores",
+            f"positions={dash['summary']['active_positions']}, accounts={dash['summary']['linked_accounts']}",
+        )
+
+    # Single-currency (USD): los escalares total_value/invested/unrealized
+    # NO son None, y total_value_by_currency tiene 1 sola entrada (USD).
+    summary = dash["summary"]
+    if (summary["total_value"] is not None
+            and list(summary["total_value_by_currency"].keys()) == ["USD"]
+            and abs(summary["total_value_by_currency"]["USD"] - Decimal("1632")) < Decimal("0.01")):
+        r.ok(f"single-currency USD: scalar={summary['total_value']} == by_currency['USD']={summary['total_value_by_currency']['USD']}")
+    else:
+        r.fail(
+            "shape by currency",
+            f"scalar={summary['total_value']}, by_currency={summary['total_value_by_currency']}",
+        )
+
+    if len(dash["trend"]) == expected_days:
+        r.ok(f"dashboard.trend tiene {len(dash['trend'])} puntos")
+    else:
+        r.fail("dashboard.trend", f"got {len(dash['trend'])} puntos, esperaba {expected_days}")
+
+
+# ────────────────────────────────────────────────────────────────────────────
+# Fase 7 — End-to-End: PDF Fintual → ingest → rebuild → dashboard
+# ────────────────────────────────────────────────────────────────────────────
+async def test_e2e_pdf_to_dashboard(r: Report):
+    """Flujo completo del producto:
+      1. Pre-condición: existe asset en catálogo (por sync_stock_prices o manual)
+      2. Usuario sube PDF → pdf_repo crea transactions + dividends
+      3. Frontend dispara POST /portfolio/rebuild → snapshots persistidos
+      4. Frontend lee GET /portfolio/dashboard → ve el portafolio actualizado
+
+    Acá simulamos las 4 capas con repos directos (no podemos hacer HTTP
+    autenticado en CI sin JWT real). El test verifica que el flujo de DATOS
+    es consistente extremo a extremo.
+    """
+    from app.repositories import pdf_repo, portfolio_repo
+
+    section("Fase 7.1 — E2E: PDF → ingest → rebuild → dashboard")
+
+    u_id = f"{TEST_USER_PREFIX}e2e_pdf"
+
+    async with SessionLocal() as db:
+        await user_repo.get_or_create_by_clerk_id(db, u_id, "e2e@inttest.io")
+        symbol = f"_INTTEST_E2E{int(time.time())}"
+        asset = await asset_repo.create(
+            db, AssetCreate(symbol=symbol, name=f"E2E Stock {symbol}",
+                            kind=AssetKind.stock, currency="USD"),
+        )
+        acc = await account_repo.create(
+            db, u_id, AccountCreate(name="_inttest_e2e_acc", currency="USD")
+        )
+        # Precio actual para que el dashboard tenga market_value
+        await asset_price_repo.upsert(
+            db, asset.id,
+            AssetPriceCreate(date=date.today(), close=Decimal("150"),
+                             currency="USD", source="_inttest"),
+        )
+
+    # ── 1. Simular subida de PDF ────────────────────────────────────────
+    purchase_sales = [
+        # buy 10@100 hace 5 días
+        [(date.today() - timedelta(days=5)).strftime("%Y-%m-%d"),
+         asset.name, symbol, "stock", 1000.0, 10.0, 0.0, 0.0],
+    ]
+    dividends_rows = [
+        # dividendo 50 neto hace 2 días
+        [(date.today() - timedelta(days=2)).strftime("%Y-%m-%d"),
+         asset.name, symbol, "stock", 60.0, 10.0, 50.0],
+    ]
+    async with SessionLocal() as db:
+        result = await pdf_repo.stocks_etf_1(
+            db, u_id, [purchase_sales, dividends_rows], acc.id
+        )
+
+    if (result["compras_ventas_guardadas"] == 1
+            and result["dividendos_guardados"] == 1
+            and not result["errores_activos_faltantes"]):
+        r.ok("paso 1 — PDF ingest: 1 tx (buy) + 1 dividend persistidos")
+    else:
+        r.fail("paso 1 — PDF ingest", f"result={result}")
+
+    # ── 2. Disparar rebuild (lo que hace POST /portfolio/rebuild internamente) ──
+    async with SessionLocal() as db:
+        snaps, pos = await portfolio_repo.compute_user_series(db, u_id)
+        n_snaps = await portfolio_repo.replace_snapshots(db, u_id, snaps)
+        user_obj = (await db.execute(select(Profile).where(Profile.clerk_id == u_id))).scalar_one()
+        n_pos = await portfolio_repo.replace_positions(db, user_obj, pos)
+
+    # Esperamos ~6 días (D-5..today inclusive)
+    if n_snaps == 6 and n_pos == 1:
+        r.ok(f"paso 2 — rebuild: {n_snaps} snapshots + {n_pos} position")
+    else:
+        r.fail("paso 2 — rebuild", f"snaps={n_snaps}, pos={n_pos}, expected 6+1")
+
+    # ── 3. Leer dashboard (lo que hace GET /portfolio/dashboard) ────────
+    async with SessionLocal() as db:
+        dash = await portfolio_repo.get_dashboard_data(db, u_id)
+
+    summary = dash["summary"]
+    # buy 10@100 → invested = 1000. Precio hoy = 150 → value = 10*150 = 1500.
+    # unrealized = 1500 - 1000 = 500.
+    expected_value = Decimal("1500")
+    if (summary["total_value"] is not None
+            and abs(summary["total_value"] - expected_value) < Decimal("0.01")):
+        r.ok(f"paso 3 — dashboard.total_value = {summary['total_value']} (esperado 1500)")
+    else:
+        r.fail("paso 3 — dashboard.total_value",
+               f"got {summary['total_value']}, expected {expected_value}")
+
+    if summary["active_positions"] == 1:
+        r.ok("paso 3 — dashboard.active_positions = 1")
+    else:
+        r.fail("paso 3 — active_positions",
+               f"got {summary['active_positions']}, expected 1")
+
+    # ── 4. Re-rebuild idempotente (mismo input → mismo output) ──────────
+    async with SessionLocal() as db:
+        snaps2, pos2 = await portfolio_repo.compute_user_series(db, u_id)
+        n_snaps2 = await portfolio_repo.replace_snapshots(db, u_id, snaps2)
+        user_obj2 = (await db.execute(select(Profile).where(Profile.clerk_id == u_id))).scalar_one()
+        n_pos2 = await portfolio_repo.replace_positions(db, user_obj2, pos2)
+
+    if n_snaps2 == n_snaps and n_pos2 == n_pos:
+        r.ok(f"paso 4 — rebuild idempotente: {n_snaps2} snapshots, {n_pos2} position")
+    else:
+        r.fail("paso 4 — rebuild idempotente",
+               f"first={n_snaps}+{n_pos}, second={n_snaps2}+{n_pos2}")
+
+    # ── 5. trend filtrado por rango (paginación) ──────────────────────
+    async with SessionLocal() as db:
+        dash_full = await portfolio_repo.get_dashboard_data(db, u_id)
+        # Pido solo los últimos 3 días → debería retornar 3 puntos
+        dash_partial = await portfolio_repo.get_dashboard_data(
+            db, u_id, trend_from=date.today() - timedelta(days=2),
+        )
+
+    if len(dash_full["trend"]) == 6 and len(dash_partial["trend"]) == 3:
+        r.ok(f"paso 5 — trend pagina: full={len(dash_full['trend'])}, "
+             f"trend_from D-2={len(dash_partial['trend'])}")
+    else:
+        r.fail("paso 5 — trend filtering",
+               f"full={len(dash_full['trend'])} (esperado 6), "
+               f"partial={len(dash_partial['trend'])} (esperado 3)")
 
 
 # ────────────────────────────────────────────────────────────────────────────
@@ -680,6 +1023,12 @@ async def main(api_url: str, label: str, cleanup: bool) -> int:
     await test_ingestion_pdf_stocks_etf_1(r)
     await test_ingestion_pdf_mutual_funds(r)
     await test_ingestion_twelvedata(r)
+
+    # Fase 6: portfolio reconstruction
+    await test_portfolio_reconstruction(r)
+
+    # Fase 7: end-to-end (PDF → ingest → rebuild → dashboard)
+    await test_e2e_pdf_to_dashboard(r)
 
     if cleanup:
         section("Cleanup: borrar profiles + assets de test")

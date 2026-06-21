@@ -2,7 +2,7 @@
 
 > ⚙️ Generado automáticamente desde `/openapi.json`. **NO editar a mano** — re-correr `scripts/generate_api_contract.py`.
 
-**Total endpoints**: 33  
+**Total endpoints**: 46  
 **Base URL local**: `http://localhost:8000` (sin `/api/v1`)  
 **Auth**: Bearer JWT Clerk en header `Authorization` (excepto rutas públicas)
 
@@ -10,18 +10,20 @@
 
 | Tag | Endpoints |
 |---|---|
-| **accounts** | 7 (`/accounts`, `/accounts/dividends/{account_id}`, `/accounts/metrics/{account_id}`, `/accounts/positions/{account_id}`, `/accounts/transactions/{account_id}`, `/accounts/{account_id}`) |
-| **assets** | 3 (`/assets`, `/assets/{asset_id}`) |
+| **accounts** | 8 (`/accounts`, `/accounts/dividends/{account_id}`, `/accounts/metrics/{account_id}`, `/accounts/positions/{account_id}`, `/accounts/transactions/{account_id}`, `/accounts/with-counters`, `/accounts/{account_id}`) |
+| **assets** | 5 (`/assets`, `/assets/metrics/daily/{asset_id}`, `/assets/metrics/monthly/{asset_id}`, `/assets/{asset_id}`) |
 | **dividends** | 1 (`/dividends`) |
 | **health** | 1 (`/health`) |
 | **misc** | 2 (`/`, `/protected`) |
 | **onboarding** | 1 (`/risk_profile`) |
 | **pdf** | 3 (`/pdf/extract_mutual_funds`, `/pdf/extract_stocks_etf_1`, `/pdf/extract_stocks_etf_2`) |
-| **positions** | 1 (`/positions`) |
+| **portfolio** | 10 (`/portfolio/dashboard`, `/portfolio/metrics/daily`, `/portfolio/metrics/daily/all`, `/portfolio/metrics/monthly`, `/portfolio/metrics/monthly/all`, `/portfolio/rebuild`, `/portfolio/summary`, `/portfolio/trend`) |
+| **positions** | 6 (`/positions`, `/positions/asset/{asset_id}`, `/positions/metrics/daily/{position_id}`, `/positions/metrics/daily/{position_id}/all`, `/positions/portfolio`) |
 | **preferences** | 2 (`/preferences`) |
 | **prices** | 2 (`/assets/{asset_id}/prices`) |
-| **profile** | 3 (`/profile`) |
+| **profile** | 2 (`/profile`) |
 | **transactions** | 2 (`/transactions`) |
+| **warnings** | 2 (`/warnings`, `/warnings/{alert_id}`) |
 | **webhooks** | 1 (`/webhooks/clerk`) |
 
 
@@ -30,6 +32,11 @@
 ### `GET` `/accounts`
 
 List Accounts
+
+**Query params**:
+
+- `skip` (integer, optional) — Registros a saltar
+- `limit` (integer, optional) — Máx. registros retornar
 
 **Response 200** — Successful Response:
 
@@ -42,6 +49,14 @@ array of AccountRead:
     currency?: string
     created_at: string (date-time)
     user_id: string
+  }
+```
+
+**Response 422** — Validation Error:
+
+```
+HTTPValidationError: {
+    detail?: array of `ValidationError`
   }
 ```
 
@@ -92,6 +107,11 @@ Get Account Dividends
 
 - `account_id`: string (uuid)
 
+**Query params**:
+
+- `skip` (integer, optional) — Registros a saltar
+- `limit` (integer, optional) — Máx. registros retornar
+
 **Response 200** — Successful Response:
 
 ```
@@ -104,7 +124,7 @@ array of DividendRead:
     gross_amount: string | null
     tax_amount: string | null
     net_amount: string | null
-    created_at: string (date-time)
+    asset: `AssetRead`
   }
 ```
 
@@ -130,8 +150,8 @@ Get Account Metrics
 
 ```
 AccountMetricsRead: {
-    daily?: array of `AccountDailyMetricRead`
-    monthly?: array of `AccountMonthlyMetricRead`
+    daily?: `AccountDailyMetricRead` | null
+    monthly?: `AccountMonthlyMetricRead` | null
   }
 ```
 
@@ -153,6 +173,11 @@ Get Account Positions
 
 - `account_id`: string (uuid)
 
+**Query params**:
+
+- `skip` (integer, optional) — Registros a saltar
+- `limit` (integer, optional) — Máx. registros retornar
+
 **Response 200** — Successful Response:
 
 ```
@@ -168,6 +193,7 @@ array of PositionRead:
     total_fees: string | null
     last_transaction_at: string (date-time) | null
     updated_at: string (date-time) | null
+    asset: `AssetRead`
   }
 ```
 
@@ -189,6 +215,11 @@ Get Account Transactions
 
 - `account_id`: string (uuid)
 
+**Query params**:
+
+- `skip` (integer, optional) — Registros a saltar
+- `limit` (integer, optional) — Máx. registros retornar
+
 **Response 200** — Successful Response:
 
 ```
@@ -203,6 +234,38 @@ array of TransactionRead:
     executed_at: string (date-time)
     id: string (uuid)
     created_at: string (date-time)
+    asset: `AssetRead`
+  }
+```
+
+**Response 422** — Validation Error:
+
+```
+HTTPValidationError: {
+    detail?: array of `ValidationError`
+  }
+```
+
+---
+
+### `GET` `/accounts/with-counters`
+
+List Accounts
+
+**Query params**:
+
+- `skip` (integer, optional) — Registros a saltar
+- `limit` (integer, optional) — Máx. registros retornar
+
+**Response 200** — Successful Response:
+
+```
+array of AccountWithCountersRead:
+{
+    account: `AccountRead`
+    stock_positions?: integer
+    fund_positions?: integer
+    etf_positions?: integer
   }
 ```
 
@@ -227,16 +290,13 @@ Get Account
 **Response 200** — Successful Response:
 
 ```
-AccountDetailRead: {
+AccountRead: {
     id: string (uuid)
     name: string
     broker?: string | null
     currency?: string
     created_at: string (date-time)
     user_id: string
-    dividends?: array of `DividendRead`
-    positions?: array of `PositionRead`
-    transactions?: array of `TransactionRead`
   }
 ```
 
@@ -259,12 +319,12 @@ List Assets
 
 **Query params**:
 
-- `symbol` (string | null, optional) — exact match (Eduardo)
+- `symbol` (string | null, optional) — exact match
 - `kind` (`AssetKind` | null, optional)
 - `currency` (string | null, optional)
 - `search` (string | null, optional) — ilike sobre symbol o name
 - `limit` (integer, optional)
-- `offset` (integer, optional)
+- `skip` (integer, optional)
 
 **Response 200** — Successful Response:
 
@@ -275,7 +335,7 @@ array of AssetRead:
     symbol: string
     name: string
     kind: `AssetKind`
-    currency: string
+    currency?: string | null
     created_at: string (date-time)
   }
 ```
@@ -313,8 +373,68 @@ AssetRead: {
     symbol: string
     name: string
     kind: `AssetKind`
-    currency: string
+    currency?: string | null
     created_at: string (date-time)
+  }
+```
+
+**Response 422** — Validation Error:
+
+```
+HTTPValidationError: {
+    detail?: array of `ValidationError`
+  }
+```
+
+---
+
+### `GET` `/assets/metrics/daily/{asset_id}`
+
+Get Asset Daily Metrics
+
+**Path params**:
+
+- `asset_id`: string (uuid)
+
+**Response 200** — Successful Response:
+
+```
+AssetDailyMetricRead: {
+    id: string (uuid)
+    asset_id: string (uuid)
+    date: string (date) | null
+    absolute_return: string | null
+    volatility: string | null
+    max_drawdown: string | null
+  }
+```
+
+**Response 422** — Validation Error:
+
+```
+HTTPValidationError: {
+    detail?: array of `ValidationError`
+  }
+```
+
+---
+
+### `GET` `/assets/metrics/monthly/{asset_id}`
+
+Get Asset Monthly Metrics
+
+**Path params**:
+
+- `asset_id`: string (uuid)
+
+**Response 200** — Successful Response:
+
+```
+AssetMonthlyMetricRead: {
+    id: string (uuid)
+    asset_id: string (uuid)
+    date: string (date) | null
+    beta: string | null
   }
 ```
 
@@ -344,7 +464,7 @@ AssetDetailRead: {
     symbol: string
     name: string
     kind: `AssetKind`
-    currency: string
+    currency?: string | null
     created_at: string (date-time)
     prices?: array of `AssetPriceRead`
   }
@@ -367,6 +487,11 @@ HTTPValidationError: {
 
 List Dividends
 
+**Query params**:
+
+- `skip` (integer, optional) — Registros a saltar
+- `limit` (integer, optional) — Máx. registros retornar
+
 **Response 200** — Successful Response:
 
 ```
@@ -379,7 +504,15 @@ array of DividendRead:
     gross_amount: string | null
     tax_amount: string | null
     net_amount: string | null
-    created_at: string (date-time)
+    asset: `AssetRead`
+  }
+```
+
+**Response 422** — Validation Error:
+
+```
+HTTPValidationError: {
+    detail?: array of `ValidationError`
   }
 ```
 
@@ -513,11 +646,321 @@ HTTPValidationError: {
 ---
 
 
+## portfolio
+
+### `GET` `/portfolio/dashboard`
+
+Get Dashboard
+
+**Query params**:
+
+- `trend_from` (string (date) | null, optional) — Filtra el trend desde esta fecha inclusive (YYYY-MM-DD).
+- `trend_to` (string (date) | null, optional) — Filtra el trend hasta esta fecha inclusive (YYYY-MM-DD).
+
+**Response 200** — Successful Response:
+
+```
+PortfolioDashboard: {
+    summary: `PortfolioSummary`
+    trend: array of `TrendPoint`
+    account_distribution: array of `AccountDistributionItem`
+    positions: array of `PositionDerived`
+  }
+```
+
+**Response 422** — Validation Error:
+
+```
+HTTPValidationError: {
+    detail?: array of `ValidationError`
+  }
+```
+
+---
+
+### `GET` `/portfolio/metrics/daily`
+
+Get Latest Daily Metric
+
+**Response 200** — Successful Response:
+
+```
+PortfolioDailyMetricRead: {
+    id: string (uuid)
+    portfolio_id: string (uuid)
+    date: string (date) | null
+    pnl: string | null
+    max_drawdown: string | null
+    volatility: string | null
+    fx_decomposition?: object | null
+  }
+```
+
+---
+
+### `POST` `/portfolio/metrics/daily`
+
+Post Daily Metrics
+
+---
+
+### `GET` `/portfolio/metrics/daily/all`
+
+Get Daily Metrics
+
+**Query params**:
+
+- `trend_from` (string (date) | null, optional)
+- `trend_to` (string (date) | null, optional)
+
+**Response 422** — Validation Error:
+
+```
+HTTPValidationError: {
+    detail?: array of `ValidationError`
+  }
+```
+
+---
+
+### `GET` `/portfolio/metrics/monthly`
+
+Get Latest Monthly Metric
+
+**Response 200** — Successful Response:
+
+```
+PortfolioMonthlyMetricRead: {
+    id: string (uuid)
+    portfolio_id: string (uuid)
+    date: string (date) | null
+    twr: string | null
+    dietz: string | null
+    var: string | null
+    accounts_correlation?: string | null
+  }
+```
+
+---
+
+### `POST` `/portfolio/metrics/monthly`
+
+Post Monthly Metrics
+
+---
+
+### `GET` `/portfolio/metrics/monthly/all`
+
+Get Monthly Metrics
+
+**Query params**:
+
+- `trend_from` (string (date) | null, optional)
+- `trend_to` (string (date) | null, optional)
+
+**Response 422** — Validation Error:
+
+```
+HTTPValidationError: {
+    detail?: array of `ValidationError`
+  }
+```
+
+---
+
+### `POST` `/portfolio/rebuild`
+
+Rebuild Portfolio
+
+**Response 200** — Successful Response:
+
+```
+RebuildResult: {
+    snapshots_persisted: integer
+    positions_persisted: integer
+  }
+```
+
+---
+
+### `GET` `/portfolio/summary`
+
+Get Portfolio Summary
+
+**Response 200** — Successful Response:
+
+```
+PortfolioSummaryResponse: {
+    summary: `PortfolioSummary`
+    account_distribution: array of `AccountDistributionItem`
+  }
+```
+
+---
+
+### `GET` `/portfolio/trend`
+
+Get Portfolio Trend
+
+**Query params**:
+
+- `trend_from` (string (date) | null, optional) — Filtra desde esta fecha inclusive (YYYY-MM-DD).
+- `trend_to` (string (date) | null, optional) — Filtra hasta esta fecha inclusive (YYYY-MM-DD).
+
+**Response 200** — Successful Response:
+
+```
+array of TrendPoint:
+{
+    date: string (date)
+    value: string
+  }
+```
+
+**Response 422** — Validation Error:
+
+```
+HTTPValidationError: {
+    detail?: array of `ValidationError`
+  }
+```
+
+---
+
+
 ## positions
 
 ### `GET` `/positions`
 
 List Positions
+
+**Query params**:
+
+- `skip` (integer, optional) — Registros a saltar
+- `limit` (integer, optional) — Máx. registros retornar
+
+**Response 200** — Successful Response:
+
+```
+array of PositionRead:
+{
+    id: string (uuid)
+    account_id: string (uuid)
+    asset_id: string (uuid)
+    quantity: string | null
+    avg_cost: string | null
+    realized_pnl: string | null
+    total_dividends: string | null
+    total_fees: string | null
+    last_transaction_at: string (date-time) | null
+    updated_at: string (date-time) | null
+    asset: `AssetRead`
+  }
+```
+
+**Response 422** — Validation Error:
+
+```
+HTTPValidationError: {
+    detail?: array of `ValidationError`
+  }
+```
+
+---
+
+### `GET` `/positions/asset/{asset_id}`
+
+Get Position By Asset
+Get Position By Asset
+
+**Path params**:
+
+- `asset_id`: string (uuid)
+
+**Response 200** — Successful Response:
+
+```
+`PositionRead` | null
+```
+
+**Response 422** — Validation Error:
+
+```
+HTTPValidationError: {
+    detail?: array of `ValidationError`
+  }
+```
+
+---
+
+### `GET` `/positions/metrics/daily/{position_id}`
+
+Get Latest Daily Positions Metrics
+
+**Path params**:
+
+- `position_id`: string (uuid)
+
+**Response 422** — Validation Error:
+
+```
+HTTPValidationError: {
+    detail?: array of `ValidationError`
+  }
+```
+
+---
+
+### `POST` `/positions/metrics/daily/{position_id}`
+
+Post Daily Positions Metrics
+
+**Path params**:
+
+- `position_id`: string (uuid)
+
+**Response 422** — Validation Error:
+
+```
+HTTPValidationError: {
+    detail?: array of `ValidationError`
+  }
+```
+
+---
+
+### `GET` `/positions/metrics/daily/{position_id}/all`
+
+Get Daily Positions Metrics
+
+**Path params**:
+
+- `position_id`: string (uuid)
+
+**Query params**:
+
+- `trend_from` (string (date) | null, optional)
+- `trend_to` (string (date) | null, optional)
+
+**Response 422** — Validation Error:
+
+```
+HTTPValidationError: {
+    detail?: array of `ValidationError`
+  }
+```
+
+---
+
+### `GET` `/positions/portfolio`
+
+List Positions Portfolio
+List Positions Portfolio
+
+**Query params**:
+
+- `skip` (integer, optional) — Registros a saltar
+- `limit` (integer, optional) — Máx. registros retornar
 
 **Response 200** — Successful Response:
 
@@ -533,6 +976,15 @@ array of PositionDerived:
     last_price: string | null
     market_value: string | null
     unrealized_pnl: string | null
+    asset: `AssetRead`
+  }
+```
+
+**Response 422** — Validation Error:
+
+```
+HTTPValidationError: {
+    detail?: array of `ValidationError`
   }
 ```
 
@@ -733,25 +1185,6 @@ HTTPValidationError: {
   }
 ```
 
-**Response 200** — Successful Response:
-
-```
-UserRead: {
-    clerk_id: string
-    email: string | null
-    created_at: string (date-time)
-    risk_profile: `RiskProfile` | null
-  }
-```
-
-**Response 422** — Validation Error:
-
-```
-HTTPValidationError: {
-    detail?: array of `ValidationError`
-  }
-```
-
 ---
 
 
@@ -760,6 +1193,11 @@ HTTPValidationError: {
 ### `GET` `/transactions`
 
 List Transactions
+
+**Query params**:
+
+- `skip` (integer, optional) — Registros a saltar
+- `limit` (integer, optional) — Máx. registros retornar
 
 **Response 200** — Successful Response:
 
@@ -775,6 +1213,15 @@ array of TransactionRead:
     executed_at: string (date-time)
     id: string (uuid)
     created_at: string (date-time)
+    asset: `AssetRead`
+  }
+```
+
+**Response 422** — Validation Error:
+
+```
+HTTPValidationError: {
+    detail?: array of `ValidationError`
   }
 ```
 
@@ -811,6 +1258,7 @@ TransactionRead: {
     executed_at: string (date-time)
     id: string (uuid)
     created_at: string (date-time)
+    asset: `AssetRead`
   }
 ```
 
@@ -821,6 +1269,96 @@ HTTPValidationError: {
     detail?: array of `ValidationError`
   }
 ```
+
+---
+
+
+## warnings
+
+### `GET` `/warnings`
+
+List Warnings
+
+**Query params**:
+
+- `is_read` (boolean | null, optional) — Filtrar por avisos leídos
+- `is_active` (boolean | null, optional) — Filtrar por avisos activos
+
+**Response 200** — Successful Response:
+
+```
+array of AlertRead:
+{
+    id: string (uuid)
+    user_id: string
+    type: string
+    trigger_field: string
+    trigger_value: string
+    threshold_value: string
+    msg: string
+    is_read: boolean
+    created_at: string (date-time)
+    notified_at: string (date-time) | null
+    last_triggered: string (date) | null
+    is_active: boolean
+  }
+```
+
+**Response 422** — Validation Error:
+
+```
+HTTPValidationError: {
+    detail?: array of `ValidationError`
+  }
+```
+
+---
+
+### `PATCH` `/warnings/{alert_id}`
+
+Update Warning
+
+**Path params**:
+
+- `alert_id`: string (uuid)
+
+**Request body** (application/json):
+
+```
+AlertUpdate: {
+    is_read?: boolean | null
+    is_active?: boolean | null
+  }
+```
+
+**Response 200** — Successful Response:
+
+```
+AlertRead: {
+    id: string (uuid)
+    user_id: string
+    type: string
+    trigger_field: string
+    trigger_value: string
+    threshold_value: string
+    msg: string
+    is_read: boolean
+    created_at: string (date-time)
+    notified_at: string (date-time) | null
+    last_triggered: string (date) | null
+    is_active: boolean
+  }
+```
+
+**Response 422** — Validation Error:
+
+```
+HTTPValidationError: {
+    detail?: array of `ValidationError`
+  }
+```
+
+---
 
 
 ## webhooks
