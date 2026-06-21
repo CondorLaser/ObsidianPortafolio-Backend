@@ -29,5 +29,5 @@ jobs:
           # Reusamos el secret DATABASE_URL existente (formato psycopg2).
           # app/core/config.py normaliza automáticamente postgresql:// →
           # postgresql+asyncpg:// para SQLAlchemy.
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL_ASYNC  }}
         run: python -m scripts_ghactions.portfolio_reconstruction

@@ -27,5 +27,5 @@ jobs:
 
       - name: Generar métricas de portfolio
         env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL_ASYNC  }}
         run: python -m scripts_ghactions.portfolio_metrics
