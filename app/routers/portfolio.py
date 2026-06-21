@@ -17,6 +17,7 @@ from app.schemas.portfolio import PortfolioDashboard, PortfolioSummaryResponse, 
 from app.schemas.portfolio_metrics import PortfolioDailyMetricRead, PortfolioMonthlyMetricRead
 
 from app.metrics.portfolio import calculate_portfolio_daily_metrics, calculate_portfolio_monthly_metrics
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 router = APIRouter(prefix="/portfolio", tags=["portfolio"])
 
@@ -81,8 +82,6 @@ async def post_daily_portfolio_metrics(
     user: Profile = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    print("posteadas daily!")
-
     result = await db.execute(
         text("""
             SELECT *
@@ -95,17 +94,22 @@ async def post_daily_portfolio_metrics(
 
     snapshots = result.mappings().all()
     metrics = calculate_portfolio_daily_metrics(snapshots)
-    metric_id = str(uuid.uuid4())
+    metric_date = metrics["date"] or date_type.today()
 
     await db.execute(
         text("""
             INSERT INTO portfolio_daily_metrics (id, user_id, date, pnl, max_drawdown, volatility)
             VALUES (:id, :user_id, :date, :pnl, :max_drawdown, :volatility)
+            ON CONFLICT (user_id, date)
+            DO UPDATE SET
+                pnl = EXCLUDED.pnl,
+                max_drawdown = EXCLUDED.max_drawdown,
+                volatility = EXCLUDED.volatility
         """),
         {
-            "id": metric_id,
+            "id": str(uuid.uuid4()),
             "user_id": user.clerk_id,
-            "date": metrics["date"],
+            "date": metric_date,   # ← antes decía metrics["date"]
             "pnl": json.dumps(metrics["pnl"]),
             "max_drawdown": json.dumps(metrics["max_drawdown"]),
             "volatility": json.dumps(metrics["volatility"]),
@@ -176,17 +180,22 @@ async def post_monthly_portfolio_metrics(
 
     snapshots = result.mappings().all()
     metrics = calculate_portfolio_monthly_metrics(snapshots)
+    metric_date = metrics["date"] or date_type.today() 
     metric_id = str(uuid.uuid4())
 
     await db.execute(
         text("""
             INSERT INTO portfolio_monthly_metrics (id, user_id, date, twr, var)
             VALUES (:id, :user_id, :date, :twr, :var)
+            ON CONFLICT (user_id, date)
+            DO UPDATE SET
+                twr = EXCLUDED.twr,
+                var = EXCLUDED.var
         """),
         {
-            "id": metric_id,
+            "id": str(uuid.uuid4()),
             "user_id": user.clerk_id,
-            "date": metrics["date"],
+            "date": metric_date,   # ← antes decía metrics["date"]
             "twr": json.dumps(metrics["twr"]),
             "var": json.dumps(metrics["var"]),
         },
