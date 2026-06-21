@@ -45,7 +45,9 @@ class PortfolioSummary(BaseModel):
     total_value_by_currency: dict[str, Decimal]
     total_invested_by_currency: dict[str, Decimal]
     unrealized_pnl_by_currency: dict[str, Decimal]
+    realized_pnl_by_currency: dict[str, Decimal]
     total_return_pct: Decimal | None
+    total_return_pct_by_currency: dict[str, Decimal]
     active_positions: int
     linked_accounts: int
     last_snapshot_date: date_type | None

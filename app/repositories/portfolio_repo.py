@@ -352,10 +352,11 @@ async def get_portfolio_summary_data(session: AsyncSession, clerk_id: str) -> di
     )
     accounts_meta = {str(r.id): (r.name, r.currency) for r in accs_q.all()}
 
-    # Extraer métricas globales agrupadas por moneda directamente del JSONB
+    # Extraer métricas globales agrupadas por moneda
     total_value_by_currency: dict[str, Decimal] = {}
     total_invested_by_currency: dict[str, Decimal] = {}
     unrealized_pnl_by_currency: dict[str, Decimal] = {}
+    realized_pnl_by_currency: dict[str, Decimal] = {}
 
     if latest:
         if latest.total_value:
@@ -364,6 +365,8 @@ async def get_portfolio_summary_data(session: AsyncSession, clerk_id: str) -> di
             total_invested_by_currency = {k: Decimal(str(v)) for k, v in latest.total_invested.items()}
         if latest.unrealized_pnl:
             unrealized_pnl_by_currency = {k: Decimal(str(v)) for k, v in latest.unrealized_pnl.items()}
+        if latest.realized_pnl:
+            realized_pnl_by_currency = {k: Decimal(str(v)) for k, v in latest.realized_pnl.items()}
 
     # Calculo account distribution basado en el breakdown_by_account del latest snapshot
     distribution = []
@@ -384,7 +387,7 @@ async def get_portfolio_summary_data(session: AsyncSession, clerk_id: str) -> di
                 }
             )
 
-    # Obtengo la cantidas de positons del usuario
+    # Obtengo la cantidad de positons del usuario
     n_positions = await position_repo.count_for_user(session, clerk_id)
     
     # Calculo valores globales según si hay 1 o varias currencies
@@ -396,29 +399,44 @@ async def get_portfolio_summary_data(session: AsyncSession, clerk_id: str) -> di
         scalar_value = total_value_by_currency.get(only, ZERO)
         scalar_invested = total_invested_by_currency.get(only, ZERO)
         scalar_unrealized = unrealized_pnl_by_currency.get(only, ZERO)
+        scalar_realized = realized_pnl_by_currency.get(only, ZERO)
     else:
         scalar_value = None
         scalar_invested = None
         scalar_unrealized = None
+        scalar_realized = None
 
-    # total_return_pct adaptado para extraer el valor escalar de los diccionarios previos
+    # Se modifica total_return_pct para calcular retornos independientes por moneda
+    # Agregandose el _by_currency en caso de haber 2
     return_pct: Decimal | None = None
-    if is_single_currency and latest and prev and latest.total_value and prev.total_value:
-        prev_v_str = prev.total_value.get(only, "0")
-        latest_v_str = latest.total_value.get(only, "0")
+    return_pct_by_currency: dict[str, Decimal] = {}
+
+    if latest and prev and latest.total_value and prev.total_value:
+        all_currencies_in_snapshots = set(latest.total_value.keys()) | set(prev.total_value.keys())
         
-        prev_v = Decimal(str(prev_v_str))
-        if prev_v > 0:
-            return_pct = (Decimal(str(latest_v_str)) - prev_v) / prev_v
+        for c in all_currencies_in_snapshots:
+            prev_v = Decimal(str(prev.total_value.get(c, "0")))
+            latest_v = Decimal(str(latest.total_value.get(c, "0")))
+            
+            if prev_v > 0:
+                return_pct_by_currency[c] = (latest_v - prev_v) / prev_v
+        
+        # Mantenemos el escalar si es single_currency para retrocompatibilidad del front
+        if is_single_currency:
+            only = next(iter(user_currencies))
+            return_pct = return_pct_by_currency.get(only)
 
     summary = {
         "total_value": scalar_value,
         "total_invested": scalar_invested,
         "unrealized_pnl": scalar_unrealized,
+        "realized_pnl": scalar_realized,
         "total_value_by_currency": total_value_by_currency,
         "total_invested_by_currency": total_invested_by_currency,
         "unrealized_pnl_by_currency": unrealized_pnl_by_currency,
+        "realized_pnl_by_currency": realized_pnl_by_currency,
         "total_return_pct": return_pct,
+        "total_return_pct_by_currency": return_pct_by_currency,
         "active_positions": n_positions,
         "linked_accounts": len(accounts_meta),
         "last_snapshot_date": latest.date if latest else None,
@@ -428,7 +446,6 @@ async def get_portfolio_summary_data(session: AsyncSession, clerk_id: str) -> di
         "summary": summary,
         "account_distribution": distribution
     }
-
 # -------------------------------------
 # Para GET /portfolio/trend
 # -------------------------------------
@@ -449,20 +466,33 @@ async def get_portfolio_trend_data(
         stmt = stmt.where(PortfolioSnapshot.date >= trend_from)
     if trend_to:
         stmt = stmt.where(PortfolioSnapshot.date <= trend_to)
-        
+
     stmt = stmt.order_by(PortfolioSnapshot.date.asc())
     q = await session.execute(stmt)
     
-    # Se retorna un diccionario con el desglose por moneda en vez de un solo "value"
-    return [
-        {
-            "date": row.date,
-            "values_by_currency": {
-                k: Decimal(str(v)) for k, v in (row.total_value or {}).items()
+    trend_data = []
+    for row in q.all():
+        # Obtener el dict de valor total o un dict vacío si es None
+        val_dict = row.total_value or {}
+        # Convertir los valores a Decimal
+        values_by_currency = {k: Decimal(str(v)) for k, v in val_dict.items()}
+        
+        # Lógica de retrocompatibilidad para el gráfico del frontend:
+        # Si el usuario solo tiene activos en 1 moneda, se muestra como 'value'
+        # Así no se modifica el gráfico de frotnend en primera instancia
+        scalar_value = None
+        if len(values_by_currency) == 1:
+            scalar_value = list(values_by_currency.values())[0]
+            
+        trend_data.append(
+            {
+                "date": row.date,
+                "value": scalar_value,  # El gráfico usará esto si es single-currency
+                "values_by_currency": values_by_currency # Se usa si quieres graficar 2 líneas (multimoneda)
             }
-        } 
-        for row in q.all()
-    ]
+        )
+        
+    return trend_data
 
 async def list_users_with_transactions(session: AsyncSession) -> list[str]:
     """Devuelve el objeto user de usuarios que tienen al menos 1 transaction.
