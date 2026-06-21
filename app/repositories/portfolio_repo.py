@@ -495,15 +495,14 @@ async def get_portfolio_trend_data(
     return trend_data
 
 async def list_users_with_transactions(session: AsyncSession) -> list[str]:
-    """Devuelve el objeto user de usuarios que tienen al menos 1 transaction.
-    Usado por el cron para iterar solo los users relevantes."""
+    """Devuelve los clerk_id de usuarios que tienen al menos 1 transaction."""
     q = await session.execute(
-        select(Profile)
+        select(Profile.clerk_id)
         .join(Account, Account.user_id == Profile.clerk_id)
         .join(Transaction, Transaction.account_id == Account.id)
         .distinct()
     )
-    return [r[0] for r in q.all()]
+    return list(q.scalars().all())
 
 
 

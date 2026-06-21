@@ -46,6 +46,11 @@ async def main() -> int:
     fail = 0
     for i, user in enumerate(users, 1):
         t0 = time.time()
+        # Normalizar: si viene como string, envolverlo en objeto con .clerk_id
+        if isinstance(user, str):
+            class _U:
+                def __init__(self, cid): self.clerk_id = cid
+            user = _U(user)
         try:
             async with SessionLocal() as db:
                 snaps, pos = await portfolio_repo.compute_user_series(db, user.clerk_id)
@@ -59,7 +64,6 @@ async def main() -> int:
             fail += 1
             print(f"  [{i}/{len(users)}] {user.clerk_id}: ❌ {exc}")
             traceback.print_exc()
-            # NO re-raise — seguir con el resto de users.
 
     print()
     print(f"  RESULTADO: {ok} OK, {fail} FAIL")

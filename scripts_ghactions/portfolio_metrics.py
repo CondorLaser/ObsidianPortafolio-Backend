@@ -62,23 +62,12 @@ async def main() -> int:
                 await db.execute(
                     text("""
                         INSERT INTO portfolio_daily_metrics
-                        (
-                            id,
-                            user_id,
-                            date,
-                            pnl,
-                            max_drawdown,
-                            volatility
-                        )
-                        VALUES
-                        (
-                            :id,
-                            :user_id,
-                            :date,
-                            :pnl,
-                            :max_drawdown,
-                            :volatility
-                        )
+                        (id, user_id, date, pnl, max_drawdown, volatility)
+                        VALUES (:id, :user_id, :date, :pnl, :max_drawdown, :volatility)
+                        ON CONFLICT (user_id, date) DO UPDATE SET
+                            pnl          = EXCLUDED.pnl,
+                            max_drawdown = EXCLUDED.max_drawdown,
+                            volatility   = EXCLUDED.volatility
                     """),
                     {
                         "id": str(uuid.uuid4()),
@@ -93,21 +82,11 @@ async def main() -> int:
                 await db.execute(
                     text("""
                         INSERT INTO portfolio_monthly_metrics
-                        (
-                            id,
-                            user_id,
-                            date,
-                            twr,
-                            var
-                        )
-                        VALUES
-                        (
-                            :id,
-                            :user_id,
-                            :date,
-                            :twr,
-                            :var
-                        )
+                        (id, user_id, date, twr, var)
+                        VALUES (:id, :user_id, :date, :twr, :var)
+                        ON CONFLICT (user_id, date) DO UPDATE SET
+                            twr = EXCLUDED.twr,
+                            var = EXCLUDED.var
                     """),
                     {
                         "id": str(uuid.uuid4()),
