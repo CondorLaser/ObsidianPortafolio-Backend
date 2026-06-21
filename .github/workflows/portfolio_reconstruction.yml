@@ -1,6 +1,9 @@
 name: Portfolio Reconstruction
 
 on:
+  # push:
+  #    branches:
+  #      - test/gh_actions_new_db #solo para testeo
   schedule:
     # 06:00 UTC = 02:00 Chile (off-peak). Después de sync_stock_prices (05:00 UTC).
     - cron: "0 6 * * *"
@@ -26,5 +29,5 @@ jobs:
           # Reusamos el secret DATABASE_URL existente (formato psycopg2).
           # app/core/config.py normaliza automáticamente postgresql:// →
           # postgresql+asyncpg:// para SQLAlchemy.
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL_ASYNC  }}
         run: python -m scripts_ghactions.portfolio_reconstruction

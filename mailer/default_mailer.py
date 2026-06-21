@@ -83,10 +83,5 @@ def inmmediate_mail(to_email, active_alerts):
         print(response.headers)
         return response.status_code
     except Exception as e:
-        print(e.message)
-        return e.message
-
-
-
-
-#inmmediate_mail("fschiappacasse@uc.cl",  [["alerta1", "4", "5"], ["alerta2", "8.9", "77"]])
+        print(str(e))
+        return None

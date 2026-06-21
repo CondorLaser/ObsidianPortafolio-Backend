@@ -3,8 +3,8 @@ name: Asset Daily Metrics
 
 on:
   # push:
-  #   branches:
-  #     - feat/asset-metrics-monthly-and-mailer #solo para testeo
+  #    branches:
+  #      - test/gh_actions_new_db #solo para testeo
   schedule:
       - cron: "0 6 * * *"  # todos los días en la noche
   workflow_dispatch:      

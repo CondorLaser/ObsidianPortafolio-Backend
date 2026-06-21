@@ -4,7 +4,7 @@ name: Asset Monthly Metrics
 on:
   # push:
   #   branches:
-  #     - feat/asset-metrics-monthly-and-mailer #solo para testeo
+  #      - feat/asset-metrics-monthly-and-mailer #solo para testeo
   schedule:
     - cron: "0 6 1 * *"  # primer día del mes :p
   workflow_dispatch:      
