@@ -3,8 +3,8 @@ name: Users Warnings
 
 on:
   push:
-     branches:
-       - test/gh_actions_new_db #solo para testeo
+    branches:
+      - test/gh_actions_new_db #solo para testeo
   schedule:
       - cron: "0 10 * * *"  
   workflow_dispatch:      
@@ -26,4 +26,5 @@ jobs:
       - name: Correr script
         env:
           DATABASE_URL:  ${{ secrets.DATABASE_URL_ASYNC }}
+          SENDGRID_API_KEY: ${{ secrets.SENDGRID_API_KEY }}
         run: python scripts_ghactions/warnings_users.py

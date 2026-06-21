@@ -1,9 +1,9 @@
 name: Portfolio Metrics
 # test/gh_actions_new_db
 on:
-  push:
-     branches:
-       - test/gh_actions_new_db #solo para testeo
+  # push:
+  #    branches:
+  #      - test/gh_actions_new_db #solo para testeo
   schedule:
     # Corre después de Portfolio Reconstruction
     - cron: "30 6 * * *"

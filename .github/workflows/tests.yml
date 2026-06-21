@@ -72,8 +72,8 @@ jobs:
       - name: Lint (errores de sintaxis críticos)
         run: flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
 
-      - name: Aplicar migraciones Alembic
-        run: alembic upgrade head
+      - name: Asumir Neon como estado de verdad
+        run: alembic stamp head
 
       - name: Levantar uvicorn BAJO coverage
         run: |

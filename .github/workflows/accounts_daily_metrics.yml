@@ -1,9 +1,9 @@
 name: Account Daily Metrics
 
 on:
-  push:
-    branches:
-      - test/gh_actions_new_db #solo para testeo
+  # push:
+  #   branches:
+  #     - test/gh_actions_new_db #solo para testeo
   schedule:
     - cron: "0 7 * * *"   # diario 07:00 UTC, después de la reconstrucción (06:00)
   workflow_dispatch:
