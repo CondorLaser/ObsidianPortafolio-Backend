@@ -1,6 +1,9 @@
 name: Portfolio Reconstruction
 
 on:
+  push:
+     branches:
+       - test/gh_actions_new_db #solo para testeo
   schedule:
     # 06:00 UTC = 02:00 Chile (off-peak). Después de sync_stock_prices (05:00 UTC).
     - cron: "0 6 * * *"
