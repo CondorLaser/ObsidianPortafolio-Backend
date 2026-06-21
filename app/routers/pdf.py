@@ -10,6 +10,7 @@ import io
 import uuid
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 import pdfplumber
 
@@ -64,6 +65,20 @@ async def upload_pdf_stocks_etf_1(
     print("5 - Guardando transactions/dividends")
     dict_processed_data = await pdf_repo.stocks_etf_1( db, user.clerk_id, data, account_id)
     print("6 - Transactions guardadas")
+
+    if (
+        dict_processed_data.get("compras_ventas_guardadas", 0) == 0
+        and dict_processed_data.get("dividendos_guardados", 0) == 0
+    ):
+        return JSONResponse(
+            status_code=422,
+            content={
+                "message": (
+                    "No se subieron transacciones, revisa que sea el archivo correcto"
+                ),
+            }
+        )
+
     try:
         print("7 - Iniciando reconstrucción de portafolio")
         n_snapshots, n_positions = await reconstruct_user_portfolio(db,user)
@@ -129,13 +144,25 @@ async def upload_pdf_mutual_funds(
         with pdfplumber.open(io.BytesIO(content)) as pdf:
             data = extract_mutual_funds(pdf)
             print("4 - PDF procesado correctamente")
-    except Exception:
+    except Exception as e:
         print(f"ERROR procesando PDF: {e}")
         raise HTTPException(status_code=400, detail="Error al analizar el archivo, archivo no válido")
     # Generar las Transactions (aportes/rescates de fondos mutuos)
     print("5 - Guardando transactions/dividends")
-    await pdf_repo.save_mutual_funds(db, user.clerk_id, data, account_id)
+    #await pdf_repo.save_mutual_funds(db, user.clerk_id, data, account_id)
     print("6 - Transactions guardadas")
+    result = await pdf_repo.save_mutual_funds(db, user.clerk_id, data, account_id)
+
+    if result.get("compras_ventas_guardadas", 0) == 0:
+        return JSONResponse(
+            status_code=422,
+            content={
+                "message": (
+                    "No se subieron transacciones, revisa que sea el archivo correcto."
+                ),
+            },
+        )
+
     # Reconstruir portafolio en base a eso (positions + snapshot portafolio)
     try:
         print("7 - Iniciando reconstrucción de portafolio")
