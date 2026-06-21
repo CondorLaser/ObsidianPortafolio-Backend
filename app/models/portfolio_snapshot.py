@@ -40,13 +40,5 @@ class PortfolioSnapshot(Base):
     realized_pnl: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     breakdown_by_currency: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     breakdown_by_account: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    user: Mapped["Profile"] = relationship("Profile", back_populates="portfolio_snapshots")
 
-    user: Mapped["Profile"] = relationship(back_populates="portfolio_snapshots")
-    daily_metrics: Mapped[list["PortfolioDailyMetric"]] = relationship(
-        back_populates="portfolio",
-        cascade="all, delete-orphan",
-    )
-    monthly_metrics: Mapped[list["PortfolioMonthlyMetric"]] = relationship(
-        back_populates="portfolio",
-        cascade="all, delete-orphan",
-    )

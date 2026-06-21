@@ -101,7 +101,7 @@ async def warnings(db: AsyncSession, user_id: str, send_mail: bool = False):
     result = await db.execute(select(Profile.email).where(Profile.clerk_id == user_id))
     profile_row = result.scalar_one_or_none()
 
-    if profile_row is not None and warnings_found:
+    if profile_row is not None:
         await warning_db_changes(db, user_id, warnings_found)
 
     if profile_row is not None and warnings_found and send_mail:
@@ -160,7 +160,8 @@ async def warnings_account(db: AsyncSession, account_id: uuid.UUID, account_name
                     if supera:
                         direction = "ganó" if pnl_pct > 0 else "perdió"
                         msg = f"La cuenta '{account_name}' {direction} {abs(pnl_pct):.1%} "
-                        warnings_found.append(["P&L account", preference_pnl_account, pnl_pct, msg])
+                        key = f"pnl_account:{account_id}"
+                        warnings_found.append(["P&L account", preference_pnl_account, pnl_pct, msg, key])
                 else:
                     print(f"    pnl_account | ⚠️  account_value_yesterday es None o vacío, no se calcula pnl_pct")
             else:
@@ -190,7 +191,8 @@ async def warnings_account(db: AsyncSession, account_id: uuid.UUID, account_name
 
         if supera:
             msg = f"La cuenta '{account_name}' tiene un drawdown de {abs(max_drawdown):.1%} respecto a su máximo histórico"
-            warnings_found.append(["max_drawdown", preference_max_drawdown_account, max_drawdown, msg])
+            key = f"max_drawdown:account:{account_id}"
+            warnings_found.append(["max_drawdown", preference_max_drawdown_account, max_drawdown, msg, key])
     else:
         print(f"    dd_account  | preferencia no configurada, se omite")
 
@@ -203,12 +205,12 @@ async def warnings_portfolio(db: AsyncSession, user_id: str, account_ids: list, 
     print(f"\n  [DEBUG portfolio]")
 
     portfolio_id = None
-    total_value = None
+    total_value = None  # ahora es JSONB por moneda (ej: {"USD": "461.23"}), no se usa como float directo
     breakdown_by_currency = None
     if snapshot_today is not None:
         portfolio_id, _, total_value, _, breakdown_by_currency = snapshot_today
 
-        # MAX DRAWDOWN PORTFOLIO
+        # MAX DRAWDOWN PORTFOLIO (ahora JSONB por moneda, ej: {"USD": "-0.03", "CLP": "-0.01"})
         preference_max_drawdown_portfolio = preferences[2]
         if preference_max_drawdown_portfolio is not None and portfolio_id:
             result = await db.execute(
@@ -218,17 +220,24 @@ async def warnings_portfolio(db: AsyncSession, user_id: str, account_ids: list, 
                 .limit(1)
             )
             row = result.first()
-            max_drawdown = row[0] if row else None
+            max_drawdown_by_currency = row[0] if row else None
             max_drawdown_date = row[1] if row else None
-            supera = max_drawdown is not None and abs(float(max_drawdown)) > float(preference_max_drawdown_portfolio)
 
             # ─── DEBUG ───────────────────────────────────────────────────────
-            print(f"    dd_portfolio | PortfolioDailyMetric más reciente: max_drawdown={max_drawdown}, date={max_drawdown_date}, threshold={preference_max_drawdown_portfolio}, supera={supera}")
+            print(f"    dd_portfolio | PortfolioDailyMetric más reciente: max_drawdown={max_drawdown_by_currency}, date={max_drawdown_date}, threshold={preference_max_drawdown_portfolio}")
             # ─────────────────────────────────────────────────────────────────
 
-            if supera:
-                msg = f"Tu portafolio tiene un max drawdown de {abs(float(max_drawdown)):.1%} respecto a su máximo histórico"
-                warnings_found.append(["max_drawdown", preference_max_drawdown_portfolio, max_drawdown, msg])
+            if max_drawdown_by_currency:
+                for currency, dd_raw in max_drawdown_by_currency.items():
+                    dd_value = float(dd_raw)  # calculate_max_drawdown ya devuelve fracción, no *100
+                    supera = abs(dd_value) > float(preference_max_drawdown_portfolio)
+                    print(f"    dd_portfolio | {currency}: max_drawdown={dd_value:.4f}, threshold={preference_max_drawdown_portfolio}, supera={supera}")
+                    if supera:
+                        msg = f"Tu portafolio en {currency} tiene un max drawdown de {abs(dd_value):.1%} respecto a su máximo histórico"
+                        key = f"max_drawdown:portfolio:{currency}"
+                        warnings_found.append(["max_drawdown", preference_max_drawdown_portfolio, dd_value, msg, key])
+            else:
+                print(f"    dd_portfolio | sin datos de max_drawdown por moneda")
         else:
             print(f"    dd_portfolio | preferencia no configurada o sin portfolio_id, se omite")
     else:
@@ -297,7 +306,7 @@ async def warnings_portfolio(db: AsyncSession, user_id: str, account_ids: list, 
                 closes = data["closes"]
                 pnl_dollars = pnl_by_position.get(position_id)
                 info = position_info.get(position_id, {})
-                symbol = info.get("symbol", str(position_id))
+                symbol = info.get("symbol") or str(position_id)
 
                 if pnl_dollars is None:
                     print(f"    pnl_asset | {symbol}: sin pnl hoy, se omite")
@@ -325,17 +334,19 @@ async def warnings_portfolio(db: AsyncSession, user_id: str, account_ids: list, 
                     asset_label = f"{info.get('name', 'Activo')} ({symbol})"
                     direction = "ganó" if pnl_pct > 0 else "perdió"
                     msg = f"{asset_label} {direction} {abs(pnl_pct):.1%} hoy en tu cuenta '{acc_name}'"
-                    warnings_found.append(["P&L asset", preference_pnl_position, pnl_pct, msg])
+                    key = f"pnl_asset:{info.get('account_id')}:{info.get('asset_id')}"
+                    warnings_found.append(["P&L asset", preference_pnl_position, pnl_pct, msg, key])
         else:
             print(f"    pnl_asset | preferencia no configurada, se omite")
 
         # PESO MAX (por moneda, usando breakdown_by_currency del snapshot)
         preference_max_weight = preferences[4]
         if preference_max_weight is not None and breakdown_by_currency:
-            asset_totals = {}  # symbol -> {"total_value":, "name":, "symbol":, "currency":}
+            asset_totals = {}  # (name, currency) -> {"total_value":, "name":, "symbols": set(), "currency":}
             for position_id, data in position_data.items():
                 info = position_info.get(position_id, {})
-                symbol = info.get("symbol", str(position_id))
+                symbol = info.get("symbol") or str(position_id)
+                name = info.get("name") or symbol
                 currency = info.get("currency")
                 closes = data["closes"]
                 close_hoy = closes[0] if closes else None
@@ -343,25 +354,33 @@ async def warnings_portfolio(db: AsyncSession, user_id: str, account_ids: list, 
 
                 if close_hoy and quantity and currency:
                     position_value = float(quantity) * float(close_hoy)
-                    if symbol not in asset_totals:
-                        asset_totals[symbol] = {"total_value": 0, "name": info.get("name", "Activo"), "symbol": symbol, "currency": currency}
-                    asset_totals[symbol]["total_value"] += position_value
+                    group_key = (name, currency)
+                    if group_key not in asset_totals:
+                        asset_totals[group_key] = {
+                            "total_value": 0,
+                            "name": name,
+                            "symbols": set(),
+                            "currency": currency,
+                        }
+                    asset_totals[group_key]["total_value"] += position_value
+                    asset_totals[group_key]["symbols"].add(symbol)
                 else:
-                    print(f"    asset_weight | {symbol}: sin close_hoy, quantity o currency, se omite")
+                    print(f"    asset_weight | {symbol} ({name}): sin close_hoy, quantity o currency, se omite")
 
-            for symbol, asset_data in asset_totals.items():
-                currency = asset_data["currency"]
+            for (name, currency), asset_data in asset_totals.items():
                 denom = breakdown_by_currency.get(currency)
                 if not denom:
-                    print(f"    asset_weight | {symbol}: sin breakdown_by_currency para currency={currency}, se omite")
+                    print(f"    asset_weight | {name}: sin breakdown_by_currency para currency={currency}, se omite")
                     continue
                 weight = round(asset_data["total_value"] / float(denom), 4)
                 supera = abs(weight) > float(preference_max_weight)
-                print(f"    asset_weight | {symbol}: value={asset_data['total_value']:.2f}, total_{currency}={denom}, weight={weight:.4f}, threshold={preference_max_weight}, supera={supera}")
+                symbols_str = ", ".join(sorted(asset_data["symbols"]))
+                print(f"    asset_weight | {name} [{symbols_str}]: value={asset_data['total_value']:.2f}, total_{currency}={denom}, weight={weight:.4f}, threshold={preference_max_weight}, supera={supera}")
                 if supera:
-                    asset_label = f"{asset_data['name']} ({symbol})"
+                    asset_label = f"{name} ({symbols_str})" if symbols_str else name
                     msg = f"{asset_label} representa {weight:.1%} de tu portafolio en {currency}"
-                    warnings_found.append(["asset_weight", preference_max_weight, weight, msg])
+                    key = f"asset_weight:{name}:{currency}:{symbols_str}"
+                    warnings_found.append(["asset_weight", preference_max_weight, weight, msg, key])
         else:
             print(f"    asset_weight | preferencia no configurada o sin breakdown_by_currency, se omite")
 
@@ -405,13 +424,13 @@ async def warning_db_changes(db: AsyncSession, user_id: str, warnings_found: lis
     now = datetime.utcnow()
     ON_CHANGE = {"max_drawdown", "asset_weight"}
 
-    for w_type, threshold, trigger_val, msg in warnings_found:
+    for w_type, threshold, trigger_val, msg, key in warnings_found:
         if w_type not in ON_CHANGE:
             new_alert = Alert(
                 id=uuid.uuid4(),
                 user_id=user_id,
                 type=w_type,
-                trigger_field="",
+                trigger_field=key,
                 trigger_value=trigger_val,
                 threshold_value=threshold,
                 msg=msg,
@@ -426,21 +445,23 @@ async def warning_db_changes(db: AsyncSession, user_id: str, warnings_found: lis
                 .where(
                     Alert.user_id == user_id,
                     Alert.type == w_type,
-                    Alert.msg == msg,
+                    Alert.trigger_field == key,
                     Alert.is_active == True
                 )
             )
             existing = result.scalar_one_or_none()
             if existing:
                 await db.execute(
-                    update(Alert).where(Alert.id == existing).values(last_triggered=today)
+                    update(Alert)
+                    .where(Alert.id == existing)
+                    .values(msg=msg, trigger_value=trigger_val, threshold_value=threshold, last_triggered=today)
                 )
             else:
                 new_alert = Alert(
                     id=uuid.uuid4(),
                     user_id=user_id,
                     type=w_type,
-                    trigger_field="",
+                    trigger_field=key,
                     trigger_value=trigger_val,
                     threshold_value=threshold,
                     msg=msg,
@@ -450,17 +471,16 @@ async def warning_db_changes(db: AsyncSession, user_id: str, warnings_found: lis
                 )
                 db.add(new_alert)
 
-    active_msgs = [w[3] for w in warnings_found if w[0] in ON_CHANGE]
-    if ON_CHANGE:
-        await db.execute(
-            update(Alert)
-            .where(
-                Alert.user_id == user_id,
-                Alert.type.in_(ON_CHANGE),
-                Alert.is_active == True,
-                not_(Alert.msg.in_(active_msgs))
-            )
-            .values(is_active=False)
+    active_keys = [w[4] for w in warnings_found if w[0] in ON_CHANGE]
+    await db.execute(
+        update(Alert)
+        .where(
+            Alert.user_id == user_id,
+            Alert.type.in_(ON_CHANGE),
+            Alert.is_active == True,
+            not_(Alert.trigger_field.in_(active_keys)) if active_keys else Alert.trigger_field.isnot(None)
         )
+        .values(is_active=False)
+    )
 
     await db.commit()

@@ -1,6 +1,6 @@
 import uuid
 
-from sqlalchemy import select, func
+from sqlalchemy import delete, select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -85,6 +85,21 @@ async def create(
     await session.commit()
     await session.refresh(account)
     return account
+
+
+async def delete_for_user(
+    session: AsyncSession,
+    clerk_id: str,
+    account_id: uuid.UUID,
+) -> bool:
+    """Delete an account if it belongs to the given user."""
+    result = await session.execute(
+        delete(Account).where(Account.id == account_id, Account.user_id == clerk_id)
+    )
+    if result.rowcount == 0:
+        return False
+    await session.commit()
+    return True
 
 
 async def get_for_user(

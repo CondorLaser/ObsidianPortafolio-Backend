@@ -23,6 +23,7 @@ from app.routers import (
     webhooks,
     warnings,
 ) 
+from app.routers import delete_accounts
 
 settings = get_settings()
 
@@ -56,6 +57,7 @@ app.include_router(profile.router)
 app.include_router(preferences.router)
 app.include_router(onboarding.router)
 app.include_router(accounts.router)
+app.include_router(delete_accounts.router)
 app.include_router(assets.router)
 app.include_router(prices.router)
 app.include_router(transactions.router)

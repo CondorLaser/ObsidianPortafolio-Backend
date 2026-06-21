@@ -6,6 +6,7 @@ from app.core.db import get_db
 from app.models.user import Profile
 from app.repositories import user_preference_repo
 from app.schemas.user_preference import UserPreferenceRead, UserPreferenceUpdate
+from scripts.warnings_module import warnings as recalc_warnings
 
 router = APIRouter(prefix="/preferences", tags=["preferences"])
 
@@ -27,5 +28,10 @@ async def upsert_preferences(
     user: Profile = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Crea si no existe; actualiza solo los campos enviados si existe."""
-    return await user_preference_repo.upsert_for_user(db, user.clerk_id, payload)
+    """Crea si no existe; actualiza solo los campos enviados si existe.
+
+    También recalcula las alertas/warnings del usuario con los nuevos umbrales.
+    """
+    pref = await user_preference_repo.upsert_for_user(db, user.clerk_id, payload)
+    await recalc_warnings(db, user.clerk_id, send_mail=False)
+    return pref

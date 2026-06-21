@@ -521,8 +521,11 @@ async def reconstruct_user_portfolio(session: AsyncSession, user) -> tuple[int, 
     # Calcular la serie temporal completa en memoria para este usuario específico
     snapshots, positions = await compute_user_series(session, user.clerk_id)
     # Si el usuario no tiene transacciones, evitamos operaciones innecesarias
-    if not snapshots and not positions:
-        return 0, 0
+    #if not snapshots and not positions:
+    #    return 0, 0
+
+    # comenté lo anterior para que se calculen las métricas en caso de no tener nada
+
     # Reemplazar de forma idempotente los snapshots
     n_snaps = await replace_snapshots(session, user.clerk_id, snapshots)
     # Reemplazar las posiciones actuales

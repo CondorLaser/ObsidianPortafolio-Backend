@@ -7,6 +7,9 @@ from app.core.auth import get_current_user
 from app.core.db import get_db
 from app.models.user import Profile
 from app.repositories import account_metrics_repo, account_repo
+from app.repositories.portfolio_repo import reconstruct_user_portfolio
+from app.routers.portfolio import post_daily_portfolio_metrics, post_monthly_portfolio_metrics
+from scripts.warnings_module import warnings
 from app.schemas.account import AccountCreate, AccountDetailRead, AccountRead, AccountWithCountersRead
 from app.schemas.account_metrics import AccountMetricsRead
 from app.schemas.dividend import DividendRead
@@ -106,6 +109,16 @@ async def get_account(
     if account is None:
         raise HTTPException(status_code=404, detail="Account not found")
     return account
+
+
+@router.delete("/{account_id}")
+async def delete_account(
+    account_id: uuid.UUID,
+    user: Profile = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    # Deprecated: use DELETE /delete/accounts/{account_id}
+    raise HTTPException(status_code=404, detail="This endpoint is deprecated. Use DELETE /delete/accounts/{account_id}")
 
 
 @router.post("", response_model=AccountRead, status_code=201)
