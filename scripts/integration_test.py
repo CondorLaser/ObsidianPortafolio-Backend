@@ -177,9 +177,9 @@ def test_protected_endpoints_reject_401(r: Report, client: httpx.Client):
         ("GET", "/accounts/positions/00000000-0000-0000-0000-000000000000"),
         ("GET", "/accounts/transactions/00000000-0000-0000-0000-000000000000"),
         ("GET", "/accounts/dividends/00000000-0000-0000-0000-000000000000"),
-        ("GET", "/assets"),
-        ("POST", "/assets"),
-        ("GET", "/assets/00000000-0000-0000-0000-000000000000"),
+        # El catálogo de assets (GET/POST "" y GET/{id}) es PÚBLICO a propósito
+        # desde 72f7185 (2026-06-16): es data de referencia, no por-usuario. Por eso
+        # no se listan acá. (Las métricas y los prices SÍ siguen protegidos.)
         ("GET", "/assets/00000000-0000-0000-0000-000000000000/prices"),
         ("POST", "/assets/00000000-0000-0000-0000-000000000000/prices"),
         ("GET", "/dividends"),
@@ -618,6 +618,15 @@ async def test_ingestion_twelvedata(r: Report):
 # ────────────────────────────────────────────────────────────────────────────
 # Fase 6 — Portfolio reconstruction (time series → snapshots + positions)
 # ────────────────────────────────────────────────────────────────────────────
+def _money_total(v) -> Decimal:
+    """total_value/unrealized_pnl ahora son dict {currency: str(valor)} (multi-moneda).
+    Suma a través de monedas (la data sintética de estos tests es 1 sola moneda);
+    tolera el escalar viejo o None por compatibilidad."""
+    if isinstance(v, dict):
+        return sum((Decimal(str(x)) for x in v.values()), Decimal("0"))
+    return Decimal(str(v)) if v is not None else Decimal("0")
+
+
 async def test_portfolio_reconstruction(r: Report):
     """Test determinista de portfolio_repo: txs sintéticas → series → snapshots.
 
@@ -738,7 +747,7 @@ async def test_portfolio_reconstruction(r: Report):
     else:
         # 12 qty * 136 (precio D-1 forward-fill a hoy) = 1632
         expected_value = Decimal("1632")
-        if abs((latest.total_value or Decimal("0")) - expected_value) < Decimal("0.01"):
+        if abs(_money_total(latest.total_value) - expected_value) < Decimal("0.01"):
             r.ok(f"snapshot.total_value = {latest.total_value} (esperado 1632)")
         else:
             r.fail("total_value", f"got {latest.total_value}, expected {expected_value}")
@@ -747,7 +756,7 @@ async def test_portfolio_reconstruction(r: Report):
         # 1600 - avg_cost*3 = 1600 - (1600/15)*3 = 1600 - 320 = 1280
         # unrealized = 1632 - 1280 = 352
         expected_unrealized = Decimal("352")
-        if abs((latest.unrealized_pnl or Decimal("0")) - expected_unrealized) < Decimal("0.01"):
+        if abs(_money_total(latest.unrealized_pnl) - expected_unrealized) < Decimal("0.01"):
             r.ok(f"snapshot.unrealized_pnl = {latest.unrealized_pnl} (esperado 352)")
         else:
             r.fail(
