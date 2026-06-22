@@ -27,7 +27,6 @@ echo "Postgres listo."
 export APP_ENV=dev
 export DATABASE_URL_DEV="postgresql+asyncpg://orion:orion@localhost:5432/orion_test"
 export DATABASE_TESTING="postgresql://orion:orion@localhost:5432/orion_test"
-export CLERK_WEBHOOK_SECRET="whsec_dGVzdC1zZWNyZXQtdmFsdWUtMTIzNDU2Nzg5MA==" #no es el actual 
 export CLERK_ISSUER="https://worthy-jackal-80.clerk.accounts.dev"
 export ALLOWED_ORIGINS="http://localhost:3000"
 
