@@ -30,6 +30,13 @@ async def list_warnings(
         limit=limit,
     )
 
+@router.get("/counters", response_model=dict)
+async def get_warnings_stats(
+    user: Profile = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    return await alert_repo.count_for_user(db, clerk_id=user.clerk_id)
+
 @router.patch("/{alert_id}", response_model=AlertRead)
 async def update_warning(
     alert_id: uuid.UUID,
