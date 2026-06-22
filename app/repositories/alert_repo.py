@@ -1,4 +1,4 @@
-from sqlalchemy import select
+from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.alert import Alert
@@ -45,3 +45,48 @@ async def update_for_user(
     await session.commit()
     await session.refresh(alert)
     return alert
+
+async def count_for_user(
+    session: AsyncSession,
+    clerk_id: str,
+) -> dict:
+    base_stmt = select(Alert).where(Alert.user_id == clerk_id)
+    
+    # Contar leídas
+    read_result = await session.execute(
+        select(func.count()).select_from(Alert).where(
+            Alert.user_id == clerk_id, Alert.is_read == True
+        )
+    )
+    read_count = read_result.scalar() or 0
+    
+    # Contar no leídas
+    unread_result = await session.execute(
+        select(func.count()).select_from(Alert).where(
+            Alert.user_id == clerk_id, Alert.is_read == False
+        )
+    )
+    unread_count = unread_result.scalar() or 0
+    
+    # Contar activas
+    active_result = await session.execute(
+        select(func.count()).select_from(Alert).where(
+            Alert.user_id == clerk_id, Alert.is_active == True
+        )
+    )
+    active_count = active_result.scalar() or 0
+    
+    # Contar inactivas
+    inactive_result = await session.execute(
+        select(func.count()).select_from(Alert).where(
+            Alert.user_id == clerk_id, Alert.is_active == False
+        )
+    )
+    inactive_count = inactive_result.scalar() or 0
+    
+    return {
+        "read": read_count,
+        "unread": unread_count,
+        "active": active_count,
+        "inactive": inactive_count,
+    }
