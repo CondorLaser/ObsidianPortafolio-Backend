@@ -9,7 +9,7 @@ async def list_for_user(
     session: AsyncSession,
     clerk_id: str,
     skip: int = 0,
-    limit: int = 10,
+    limit: int = 100,
     is_read: bool | None = None,
     is_active: bool | None = None,
 ) -> list[Alert]:
