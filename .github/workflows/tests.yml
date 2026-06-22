@@ -72,6 +72,11 @@ jobs:
       - name: Lint (errores de sintaxis críticos)
         run: flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
 
+      # tests metricas portfolio y positions
+      - name: Unit tests — métricas (sin BD)
+        run: |
+          coverage run -p -m pytest tests/ -v
+
       - name: Aplicar migraciones Alembic
         run: alembic upgrade head
 
