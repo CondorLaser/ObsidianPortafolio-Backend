@@ -18,24 +18,14 @@ async def list_warnings(
     db: AsyncSession = Depends(get_db),
     is_read: bool | None = Query(None, description="Filtrar por avisos leídos"),
     is_active: bool | None = Query(None, description="Filtrar por avisos activos"),
-    skip: int = Query(0, ge=0, description="Registros a saltar"),
-    limit: int = Query(10, ge=1, le=100, description="Máx. registros retornar"),
 ):
     return await alert_repo.list_for_user(
         db,
         clerk_id=user.clerk_id,
         is_read=is_read,
         is_active=is_active,
-        skip=skip,
-        limit=limit,
     )
 
-@router.get("/counters", response_model=dict)
-async def get_warnings_stats(
-    user: Profile = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    return await alert_repo.count_for_user(db, clerk_id=user.clerk_id)
 
 @router.patch("/{alert_id}", response_model=AlertRead)
 async def update_warning(
